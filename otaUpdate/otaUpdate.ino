@@ -1,7 +1,4 @@
-/*
-  To upload through terminal you can use: curl -u admin:admin -F "image=@firmware.bin" <esp-ip-address>/firmware
-*/
-
+// libraries needed for OTA web server and WiFi connect
 #include <ESP8266WiFi.h> // ESP8266 specific WiFi library
 #include <WiFiClient.h> // library supporting WiFi connection
 #include <ESP8266WebServer.h> // library for HTTP Server
@@ -9,11 +6,14 @@
 
 #include "myCredentials.h" //used to store WiFi and update credentials
 
+
+// OTA update constants
 const char* update_path = "/firmware"; // URL path to get to firmware update
 const char* update_username = WEB_UPDATE_USER; // from creds file
 const char* update_password = WEB_UPDATE_PASS; // from creds file
 const char* ssid = WIFI_SSID; // from creds file
 const char* password = WIFI_PASSWD; // from creds file
+
 
 #define SERIAL_BAUD 115200 //baud rate for Serial debugging
 
@@ -41,7 +41,9 @@ void setup(void) {
   Serial.print("\nConnected, IP address is ");
   Serial.println(WiFi.localIP());
 
-  httpUpdater.setup(&httpServer, update_path, update_username, update_password);
+  httpUpdater.setup(&httpServer, update_path, update_username, update_password); // OTA server setup
+
+
   httpServer.begin();
 
   digitalWrite(LED_BUILTIN, HIGH); //set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
