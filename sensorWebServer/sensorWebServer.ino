@@ -11,6 +11,7 @@
 #include <Adafruit_Sensor.h> // Adafruit unified sensor library
 #include <Adafruit_BMP280.h> // Adafruit extension library for BMP280
 #include <Adafruit_BME280.h> // Adafruit extension library for BME280
+#include <DHT.h> //Adafruit extension library DHT22
 
 // other libraries
 #include <string.h> //string comparison
@@ -27,10 +28,13 @@ const char* password = WIFI_PASSWD; // from creds file
 #define SERIAL_BAUD 115200 //baud rate for Serial debugging
 
 // Sensor inits and constants
+String boschType = "uninitialized";
+#define DHTPIN D4     // what digital pin the DHT sensor is connected to
+#define DHTTYPE DHT22   // Options are DHT11, DHT12, DHT22 (AM2302), DHT21 (AM2301)
 
-char* boschType = "uninitialized";
 Adafruit_BMP280 bmp280; // I2C BMP280 init
 Adafruit_BME280 bme280; // I2C BME280 init
+DHT dht(DHTPIN, DHTTYPE); // Initialize DHT sensor.
 
 ESP8266WebServer httpServer(80);
 ESP8266HTTPUpdateServer httpUpdater;
@@ -42,13 +46,13 @@ void setupBosch() {
 
   // Try BME280 setup
   boschStatus = bme280.begin();
+  Serial.print("SensorID was: 0x"); Serial.println(bme280.sensorID(), 16);
+  Serial.println("ID of 0xFF could be a bad address, a BMP 180 or BMP 085");
+  Serial.println("ID of 0x56-0x58 represents a BMP 280");
+  Serial.println("ID of 0x60 represents a BME 280");
+  Serial.println("ID of 0x61 represents a BME 680");
   if (!boschStatus) {
     Serial.println("Could not find a valid BME280, check wiring, address, sensor ID!");
-    Serial.print("SensorID was: 0x"); Serial.println(bme280.sensorID(), 16);
-    Serial.print("        ID of 0xFF probably means a bad address, a BMP 180 or BMP 085\n");
-    Serial.print("   ID of 0x56-0x58 represents a BMP 280,\n");
-    Serial.print("        ID of 0x60 represents a BME 280.\n");
-    Serial.print("        ID of 0x61 represents a BME 680.\n");
     delay(2000);
   } else {
     Serial.println("\nBME280 found!\n");
@@ -108,11 +112,12 @@ void setup(void) {
   digitalWrite(LED_BUILTIN, HIGH); //set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
 
   setupBosch();
+  dht.begin();
 }
 
 void loop(void) {
   httpServer.handleClient();
-  if (strcmp(boschType, "BMP280") == 0) {
+  if (boschType.equals("BMP280")) {
 
     Serial.print(F("Temperature = "));
     Serial.print(bmp280.readTemperature());
@@ -124,9 +129,31 @@ void loop(void) {
 
     Serial.println();
     delay(2000);
-  } else {
+  } else if (boschType.equals("BME280")) {
     printValues();
+  } else {}
+
+  // Reading temperature or humidity takes about 250 milliseconds!
+  // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
+  float h = dht.readHumidity();
+  // Read temperature as Celsius (the default)
+  float t = dht.readTemperature();
+  // Read temperature as Fahrenheit (isFahrenheit = true)
+  float f = dht.readTemperature(true);
+
+  // Check if any reads failed and exit early (to try again).
+  if (isnan(h) || isnan(t) || isnan(f)) {
+    Serial.println(F("Failed to read from DHT sensor!"));
+
   }
+
+  Serial.print(F("Humidity: "));
+  Serial.print(h);
+  Serial.print(F("%  Temperature: "));
+  Serial.print(t);
+  Serial.print(F("°C "));
+  Serial.println(f);
+  Serial.print(F("°F "));
 }
 
 void printValues() {
