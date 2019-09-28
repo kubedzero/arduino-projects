@@ -10,6 +10,10 @@
 #include <Wire.h> // for BMP280 or BME280 via I2C
 #include <Adafruit_Sensor.h> // Adafruit unified sensor library
 #include <Adafruit_BMP280.h> // Adafruit extension library for BMP280
+#include <Adafruit_BME280.h> // Adafruit extension library for BME280
+
+// other libraries
+#include <string.h> //string comparison
 
 
 // OTA update constants
@@ -23,34 +27,57 @@ const char* password = WIFI_PASSWD; // from creds file
 #define SERIAL_BAUD 115200 //baud rate for Serial debugging
 
 // Sensor inits and constants
-Adafruit_BMP280 bosch; // I2C
+
+char* boschType = "uninitialized";
+Adafruit_BMP280 bmp280; // I2C BMP280 init
+Adafruit_BME280 bme280; // I2C BME280 init
 
 ESP8266WebServer httpServer(80);
 ESP8266HTTPUpdateServer httpUpdater;
 
+// method to connect to and initialize whichever Bosch sensor is connected
 void setupBosch() {
 
-
-  // BMP280 initialization
   unsigned boschStatus;
 
-  boschStatus = bosch.begin(0x76, 0x58); //BMP280 has I2C address 0x76 and chipID of 0x58
+  // Try BME280 setup
+  boschStatus = bme280.begin();
   if (!boschStatus) {
-    Serial.println("Could not find a valid Bosch sensor, check wiring, address, sensor ID!");
-    //Serial.print("SensorID was: 0x"); Serial.println(bosch.sensorID(),16);
+    Serial.println("Could not find a valid BME280, check wiring, address, sensor ID!");
+    Serial.print("SensorID was: 0x"); Serial.println(bme280.sensorID(), 16);
     Serial.print("        ID of 0xFF probably means a bad address, a BMP 180 or BMP 085\n");
     Serial.print("   ID of 0x56-0x58 represents a BMP 280,\n");
     Serial.print("        ID of 0x60 represents a BME 280.\n");
     Serial.print("        ID of 0x61 represents a BME 680.\n");
-    while (1);
+    delay(2000);
+  } else {
+    Serial.println("\nBME280 found!\n");
+    boschType = "BME280";
+    bme280.setSampling(Adafruit_BME280::MODE_NORMAL, /* Operating Mode. */
+                       Adafruit_BME280::SAMPLING_X16, /* Temp. oversampling */
+                       Adafruit_BME280::SAMPLING_X16,  /* Pressure oversampling */
+                       Adafruit_BME280::SAMPLING_X16, /* Humidity oversampling */
+                       Adafruit_BME280::FILTER_OFF, /* Filtering. */
+                       Adafruit_BME280::STANDBY_MS_500); /* Standby time. */
+    return;
   }
 
-  /* Default settings from datasheet. */
-  bosch.setSampling(Adafruit_BMP280::MODE_NORMAL,     /* Operating Mode. */
-                    Adafruit_BMP280::SAMPLING_X2,     /* Temp. oversampling */
-                    Adafruit_BMP280::SAMPLING_X16,    /* Pressure oversampling */
-                    Adafruit_BMP280::FILTER_X16,      /* Filtering. */
-                    Adafruit_BMP280::STANDBY_MS_500); /* Standby time. */
+  // Try BMP280 setup
+  boschStatus = bmp280.begin(0x76, 0x58); //BMP280 has I2C address 0x76 and chipID of 0x58
+  if (!boschStatus) {
+    Serial.println("Could not find a valid BMP280, check wiring, address, sensor ID!");
+  } else {
+    Serial.println("\nBMP280 found!\n");
+    boschType = "BMP280";
+    /* Default settings from datasheet. */
+    bmp280.setSampling(Adafruit_BMP280::MODE_NORMAL,     /* Operating Mode. */
+                       Adafruit_BMP280::SAMPLING_X16,     /* Temp. oversampling */
+                       Adafruit_BMP280::SAMPLING_X16,    /* Pressure oversampling */
+                       Adafruit_BMP280::FILTER_X16,      /* Filtering. */
+                       Adafruit_BMP280::STANDBY_MS_500); /* Standby time. */
+    return;
+  }
+
 }
 
 void setup(void) {
@@ -85,17 +112,36 @@ void setup(void) {
 
 void loop(void) {
   httpServer.handleClient();
-  Serial.print(F("Temperature = "));
-  Serial.print(bosch.readTemperature());
+  if (strcmp(boschType, "BMP280") == 0) {
+
+    Serial.print(F("Temperature = "));
+    Serial.print(bmp280.readTemperature());
+    Serial.println(" *C");
+
+    Serial.print(F("Pressure = "));
+    Serial.print(bmp280.readPressure());
+    Serial.println(" Pa");
+
+    Serial.println();
+    delay(2000);
+  } else {
+    printValues();
+  }
+}
+
+void printValues() {
+  Serial.print("Temperature = ");
+  Serial.print(bme280.readTemperature());
   Serial.println(" *C");
 
-  Serial.print(F("Pressure = "));
-  Serial.print(bosch.readPressure());
-  Serial.println(" Pa");
+  Serial.print("Pressure = ");
 
-  Serial.print(F("Approx altitude = "));
-  Serial.print(bosch.readAltitude(1013.25)); /* Adjusted to local forecast! */
-  Serial.println(" m");
+  Serial.print(bme280.readPressure() / 100.0F);
+  Serial.println(" hPa");
+
+  Serial.print("Humidity = ");
+  Serial.print(bme280.readHumidity());
+  Serial.println(" %");
 
   Serial.println();
   delay(2000);
