@@ -1,2 +1,2 @@
-
-otaUpdate/myCredentials.h
+# https://stackoverflow.com/questions/8981472/ignore-all-files-with-the-same-name-in-git
+**/myCredentials.h
