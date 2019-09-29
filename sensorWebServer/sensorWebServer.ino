@@ -17,6 +17,7 @@
 #include <string.h> // string comparison
 #include <TaskScheduler.h> // library by arkhipenko for periodic data updates
 #include <ArduinoLog.h> // library by thijse for outputting different log levels
+#include <SoftwareSerial.h> // library for assigning pins as Serial ports, for PMS7003
 
 
 
@@ -46,10 +47,14 @@ ESP8266HTTPUpdateServer httpUpdater;
 String boschType = "uninitialized";
 #define DHTPIN D4     // what digital pin the DHT sensor is connected to
 #define DHTTYPE DHT22   // Options are DHT11, DHT12, DHT22 (AM2302), DHT21 (AM2301)
+#define PMSTX D7 // what Arduino TX digital pin the PMS sensor RX is connected to
+#define PMSRX D6 // what Arduino RX digital pin the PMS sensor TX is connected to
+#define PMS_BAUD 9600 //baud rate for SoftwareSerial for PMS7003
 
 Adafruit_BMP280 bmp280; // I2C BMP280 init
 Adafruit_BME280 bme280; // I2C BME280 init
 DHT dht(DHTPIN, DHTTYPE); // Initialize DHT sensor.
+SoftwareSerial pmsDigitalSerial(PMSRX, PMSTX); // RX, TX to plug TX, RX of PMS into
 
 // DHT Data
 float dhtHumidityPercent = 0;
@@ -62,6 +67,17 @@ float boschTemperatureC = 0;
 float boschTemperatureF = 0;
 float boschPressurePa = 0;
 float boschPressureInHg = 0;
+
+struct pms7003data {
+  uint16_t framelen;
+  uint16_t pm10_standard, pm25_standard, pm100_standard;
+  uint16_t pm10_env, pm25_env, pm100_env;
+  uint16_t particles_03um, particles_05um, particles_10um, particles_25um, particles_50um, particles_100um;
+  uint16_t unused;
+  uint16_t checksum;
+};
+
+struct pms7003data pmsData;
 
 
 
@@ -168,6 +184,7 @@ void setup(void) {
 
   setupBosch(); // run the setup method to initialize one Bosch sensor
   dht.begin(); // initialize the DHT sensor
+  pmsDigitalSerial.begin(PMS_BAUD);
 
   scheduler.addTask(dataUpdateTask);
   dataUpdateTask.enable();
@@ -182,6 +199,28 @@ void setup(void) {
 void loop(void) {
   httpServer.handleClient(); // if the webserver is accessed, this handles the request
   scheduler.execute(); // keep the timer running for scheduled data updates
+  if (readPMSdata(&pmsDigitalSerial)) {
+    // reading data was successful!
+    Serial.println();
+    Serial.println("---------------------------------------");
+    Serial.println("Concentration Units (standard)");
+    Serial.print("PM 1.0: "); Serial.print(pmsData.pm10_standard);
+    Serial.print("\t\tPM 2.5: "); Serial.print(pmsData.pm25_standard);
+    Serial.print("\t\tPM 10: "); Serial.println(pmsData.pm100_standard);
+    Serial.println("---------------------------------------");
+    Serial.println("Concentration Units (environmental)");
+    Serial.print("PM 1.0: "); Serial.print(pmsData.pm10_env);
+    Serial.print("\t\tPM 2.5: "); Serial.print(pmsData.pm25_env);
+    Serial.print("\t\tPM 10: "); Serial.println(pmsData.pm100_env);
+    Serial.println("---------------------------------------");
+    Serial.print("Particles > 0.3um / 0.1L air:"); Serial.println(pmsData.particles_03um);
+    Serial.print("Particles > 0.5um / 0.1L air:"); Serial.println(pmsData.particles_05um);
+    Serial.print("Particles > 1.0um / 0.1L air:"); Serial.println(pmsData.particles_10um);
+    Serial.print("Particles > 2.5um / 0.1L air:"); Serial.println(pmsData.particles_25um);
+    Serial.print("Particles > 5.0um / 0.1L air:"); Serial.println(pmsData.particles_50um);
+    Serial.print("Particles > 10.0 um / 0.1L air:"); Serial.println(pmsData.particles_100um);
+    Serial.println("---------------------------------------");
+  }
 }
 
 // prints the CSV header/schema of the data output
@@ -227,4 +266,48 @@ void handleNotFound() {
 // helper to add a newline at the end of every log statement
 void printNewline(Print* _logOutput) {
   _logOutput->print('\n');
+}
+
+boolean readPMSdata(Stream *s) {
+  if (! s->available()) {
+    Log.warning("PMS Stream not available")
+    return false;
+  }
+
+  // Read a byte at a time until we get to the special '0x42' start-byte
+  if (s->peek() != 0x42) {
+    s->read();
+    return false;
+  }
+
+  // Now read all 32 bytes
+  if (s->available() < 32) {
+    return false;
+  }
+
+  uint8_t buffer[32];
+  uint16_t sum = 0;
+  s->readBytes(buffer, 32);
+
+  // get checksum ready
+  for (uint8_t i = 0; i < 30; i++) {
+    sum += buffer[i];
+  }
+
+  // The data comes in endian'd, this solves it so it works on all platforms
+  uint16_t buffer_u16[15];
+  for (uint8_t i = 0; i < 15; i++) {
+    buffer_u16[i] = buffer[2 + i * 2 + 1];
+    buffer_u16[i] += (buffer[2 + i * 2] << 8);
+  }
+
+  // put it into a nice struct :)
+  memcpy((void *)&pmsData, (void *)buffer_u16, 30);
+
+  if (sum != pmsData.checksum) {
+    Serial.println("Checksum failure");
+    return false;
+  }
+  // success!
+  return true;
 }
