@@ -300,19 +300,26 @@ void printNewline(Print * _logOutput) {
 boolean readPmsData(Stream * s) {
   if (! s->available()) {
     Log.warning("PMS Stream not available");
-    return false; // exit early
+    return false;
   }
 
-  // Read a byte at a time until we get to the special '0x42' start-byte
-  if (s->peek() != 0x42) {
+  // Read ahead a byte at a time until we get to the special '0x42' start-byte
+  uint8_t bytesMovedAhead = 0;
+  while (s->peek() != 0x42) {
     s->read();
+    bytesMovedAhead++;
+  }
+  if (bytesMovedAhead > 0) {
+    Log.trace("PMS moved %d read bytes ahead to find 0x42 start-byte");
+  }
+
+  // Make sure the full payload is available
+  if (s->available() < 32) {
+    Log.warning("Less than 32 PMS read bytes available, canceling PMS sensor update");
     return false;
   }
 
   // Now read all 32 bytes
-  if (s->available() < 32) {
-    return false;
-  }
   uint8_t buffer[32];
   uint16_t sum = 0;
   s->readBytes(buffer, 32);
@@ -333,8 +340,10 @@ boolean readPmsData(Stream * s) {
   memcpy((void *)&pmsData, (void *)buffer_u16, 30);
 
   if (sum != pmsData.checksum) {
-    Log.warning("PMS checksum failure");
+    Log.warning("PMS checksum %d did not match calculated sum %d", pmsData.checksum, sum);
     return false; // exit false if the checksum provided by the sensor doesn't match the calculated value
+  } else {
+    Log.trace("PMS checksum %d matched calculated sum", pmsData.checksum);
   }
   return true;
 }
