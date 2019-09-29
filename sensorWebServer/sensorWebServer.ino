@@ -15,19 +15,34 @@
 
 // other libraries
 #include <string.h> // string comparison
-#include <float.h> // Float methods and constants
+#include <TaskScheduler.h> // library by arkhipenko for periodic data updates
+#include <ArduinoLog.h> // library by thijse for outputting different log levels
 
 
-// OTA update constants
+
+// Timer setup
+void updateSensorData();
+Task dataUpdateTask(5000, TASK_FOREVER, &updateSensorData); // run updateSensorData() every 5000ms
+Scheduler scheduler;
+
+
+// Log setup
+#define SERIAL_BAUD 115200 // baud rate for Serial debugging
+// available levels are _SILENT, _FATAL, _ERROR, _WARNING, _NOTICE, _TRACE, _VERBOSE
+#define LOG_LEVEL LOG_LEVEL_NOTICE
+
+
+// Webserver/OTA update variables and constants
 const char* update_path = "/firmware"; // URL path to get to firmware update
 const char* update_username = WEB_UPDATE_USER; // from creds file
 const char* update_password = WEB_UPDATE_PASS; // from creds file
 const char* ssid = WIFI_SSID; // from creds file
 const char* password = WIFI_PASSWD; // from creds file
-#define SERIAL_BAUD 115200 // baud rate for Serial debugging
+ESP8266WebServer httpServer(80);
+ESP8266HTTPUpdateServer httpUpdater;
 
 
-// Sensor inits and constants
+// Sensor inits, constants, global variables
 String boschType = "uninitialized";
 #define DHTPIN D4     // what digital pin the DHT sensor is connected to
 #define DHTTYPE DHT22   // Options are DHT11, DHT12, DHT22 (AM2302), DHT21 (AM2301)
@@ -36,11 +51,6 @@ Adafruit_BMP280 bmp280; // I2C BMP280 init
 Adafruit_BME280 bme280; // I2C BME280 init
 DHT dht(DHTPIN, DHTTYPE); // Initialize DHT sensor.
 
-ESP8266WebServer httpServer(80);
-ESP8266HTTPUpdateServer httpUpdater;
-
-
-// Sensor data global vars
 // DHT Data
 float dhtHumidityPercent = 0;
 float dhtTemperatureC = 0;
@@ -62,15 +72,15 @@ void setupBosch() {
 
   // Try BME280 setup
   boschStatus = bme280.begin();
-  Serial.print("Wire SensorID was: 0x"); Serial.println(bme280.sensorID(), 16);
-  Serial.println("ID of 0xFF could be a bad address, a BMP 180 or BMP 085");
-  Serial.println("ID of 0x56-0x58 represents a BMP 280");
-  Serial.println("ID of 0x60 represents a BME 280");
-  Serial.println("ID of 0x61 represents a BME 680");
+  Log.trace("Wire SensorID was: 0x%l", bme280.sensorID());
+  Log.trace("ID of 0xFF could be a bad address, a BMP 180 or BMP 085");
+  Log.trace("ID of 0x56-0x58 represents a BMP 280");
+  Log.trace("ID of 0x60 represents a BME 280");
+  Log.trace("ID of 0x61 represents a BME 680");
   if (!boschStatus) {
-    Serial.println("No BME280 found, moving to check next Bosch sensor");
+    Log.notice("No BME280 found, moving to check next Bosch sensor");
   } else {
-    Serial.println("\nBME280 found!\n");
+    Log.notice("BME280 found!\n");
     boschType = "BME280";
     bme280.setSampling(Adafruit_BME280::MODE_NORMAL, /* Operating Mode. */
                        Adafruit_BME280::SAMPLING_X16, /* Temp. oversampling */
@@ -84,7 +94,7 @@ void setupBosch() {
   // Try BMP280 setup
   boschStatus = bmp280.begin(0x76, 0x58); //BMP280 has I2C address 0x76 and chipID of 0x58
   if (boschStatus) {
-    Serial.println("\nBMP280 found!\n");
+    Log.notice("BMP280 found!\n");
     boschType = "BMP280";
     /* Default settings from datasheet. */
     bmp280.setSampling(Adafruit_BMP280::MODE_NORMAL,     /* Operating Mode. */
@@ -98,73 +108,69 @@ void setupBosch() {
 
 // Logic to handle updating the global sensor data vars from present sensors
 void updateSensorData() {
-
   // Get DHT Data
   // Reading temperature or humidity takes about 250 milliseconds!
   // Sensor readings may also be up to 2 seconds 'old' (it is a very slow sensor)
-  float currentDhtHumidityPercent = dht.readHumidity();
-  float currentDhtTemperatureC = dht.readTemperature();
-  float currentDhtTemperatureF = dht.readTemperature(true);
-  // Check if any reads failed and print error with values
-  if (isnan(currentDhtHumidityPercent)
-      || isnan(currentDhtTemperatureC)
-      || isnan(currentDhtTemperatureF)) {
-    Serial.print(F("Failed to read from DHT sensor! Values were"));
-    Serial.print(F("Humidity: "));
-    Serial.print(currentDhtHumidityPercent);
-    Serial.print(F("%  Temperature: "));
-    Serial.print(currentDhtTemperatureC);
-    Serial.print(F("°C "));
-    Serial.print(currentDhtTemperatureF);
-    Serial.println(F("°F "));
-  }
-  // update global values
-  dhtHumidityPercent = currentDhtHumidityPercent;
-  dhtTemperatureC = currentDhtTemperatureC;
-  dhtTemperatureF = currentDhtTemperatureF;
+  dhtHumidityPercent = dht.readHumidity();
+  dhtTemperatureC = dht.readTemperature();
+  dhtTemperatureF = dht.readTemperature(true);
+  Log.verbose("Retrieved new DHT data");
 
   // Get Bosch Data
   if (boschType.equals("BMP280")) {
-    boschHumidityPercent = 1.0 / 0.0; // intentionally set this to NaN
+    boschHumidityPercent = 1.0F / 0.0F; // intentionally set this to NaN
     boschTemperatureC = bmp280.readTemperature();
     boschTemperatureF = boschTemperatureC * (9.0F / 5.0F) + 32.0F;
     boschPressurePa = bmp280.readPressure();
     boschPressureInHg = boschPressurePa / 3386.38866F;
+    Log.verbose("Retrieved new BMP280 data");
 
   } else if (boschType.equals("BME280")) {
     boschHumidityPercent = bme280.readHumidity();
     boschTemperatureC = bme280.readTemperature();
-    boschTemperatureF = boschTemperatureC * (9 / 5) + 32;
+    boschTemperatureF = boschTemperatureC * (9.0F / 5.0F) + 32.0F;
     boschPressurePa = bme280.readPressure();
-    boschPressureInHg = boschPressurePa / 3386.38866;
+    boschPressureInHg = boschPressurePa / 3386.38866F; // hPA conversion is Pa / 100.0
+    Log.verbose("Retrieved new BME280 data");
   } else if (boschType.equals("uninitialized")) {
-    Serial.println("Could not find a valid BMx280, check wiring, address, sensor ID!");
+    Log.notice("Could not find a valid BMx280, check wiring, address, sensor ID!");
 
   }
 
 }
 
+// One-time Arduino setup method
 void setup(void) {
-  Serial.begin(SERIAL_BAUD);
-  Serial.println("\nBooting Sketch...\n");
 
   pinMode(LED_BUILTIN, OUTPUT); // Blue(GeekCreit) or Red(NodeMCU 0.9) LED initialized LOW (LED ON)
+  // Serial and logging setup
+  Serial.begin(SERIAL_BAUD);
+  while (!Serial && !Serial.available()) {}
+  delay(100); //add some delay before we start printing
+  Serial.println(); // get off the junk line
+  Log.begin(LOG_LEVEL, &Serial);
+  Log.setSuffix(printNewline); // put a newline after each log statement
+  Log.notice("Booting Sketch...");
+
   // Connect to WiFi network
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
+  Log.notice("Connecting to %s", ssid);
   WiFi.mode(WIFI_AP_STA);
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
+    delay(1000);
+    Log.notice("waiting...");
   }
-  Serial.print("\nConnected, IP address is ");
-  Serial.println(WiFi.localIP());
-
+  String ipAddrString = WiFi.localIP().toString(); // convert the IPAddress opject to a String
+  char * ipAddrChar = new char [ipAddrString.length() + 1]; // allocate space for a char array
+  strcpy (ipAddrChar, ipAddrString.c_str()); // populate the char array
+  Log.notice("Connected, IP address is %s", ipAddrChar); // pass the char array to the logger
   digitalWrite(LED_BUILTIN, HIGH); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
 
   setupBosch(); // run the setup method to initialize one Bosch sensor
   dht.begin(); // initialize the DHT sensor
+
+  scheduler.addTask(dataUpdateTask);
+  dataUpdateTask.enable();
 
   httpUpdater.setup(&httpServer, update_path, update_username, update_password); // OTA server setup
   httpServer.onNotFound(handleNotFound);        // When a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
@@ -172,15 +178,13 @@ void setup(void) {
   httpServer.begin();
 }
 
+// Looping Arduino method
 void loop(void) {
-  httpServer.handleClient();
-//  updateSensorData();
-//  Serial.println("Values:");
-//  Serial.println(getGlobalDataHeader());
-//  Serial.println(getGlobalDataString());
-//  delay(2000);
+  httpServer.handleClient(); // if the webserver is accessed, this handles the request
+  scheduler.execute(); // keep the timer running for scheduled data updates
 }
 
+// prints the CSV header/schema of the data output
 String getGlobalDataHeader() {
   return String("dhtHumidityPercent,")
          + String("dhtTemperatureC,")
@@ -192,6 +196,7 @@ String getGlobalDataHeader() {
          + String("boschPressureInHg");
 }
 
+// prints the CSV data output of each metric
 String getGlobalDataString() {
   return String(dhtHumidityPercent, 2) + ","
          + String(dhtTemperatureC, 2) + ","
@@ -203,17 +208,23 @@ String getGlobalDataString() {
          + String(boschPressureInHg, 2);
 }
 
+// LED activates when this is hit. Fetches latest data values and serves them with a header
 void handleRoot() {
   digitalWrite(LED_BUILTIN, LOW); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to on
-  Serial.println("Serving root webpage");
+  Log.notice("Serving root webpage at %l milliseconds", millis()); //print out milliseconds since program launch, resets every 50d
   httpServer.send(200, "text/plain", getGlobalDataHeader() + String("\n") + getGlobalDataString());   // Send HTTP status 200 (Ok) and send some text to the browser/client
   digitalWrite(LED_BUILTIN, HIGH); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
 
 }
-
+// LED activates when this is hit. Serves a 404 to the caller
 void handleNotFound() {
   digitalWrite(LED_BUILTIN, LOW); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to on
-  Serial.println("Serving 404 not found webpage");
+  Log.notice("Serving 404 not found webpage at %l milliseconds", millis()); //print out milliseconds since program launch, resets every 50d
   httpServer.send(404, "text/plain", "404: Not found"); // Send HTTP status 404 (Not Found) when there's no handler for the URI in the request
   digitalWrite(LED_BUILTIN, HIGH); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
+}
+
+// helper to add a newline at the end of every log statement
+void printNewline(Print* _logOutput) {
+  _logOutput->print('\n');
 }
