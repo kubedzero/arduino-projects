@@ -44,12 +44,14 @@ ESP8266HTTPUpdateServer httpUpdater;
 
 
 // Sensor inits, constants, global variables
-String boschType = "uninitialized";
+String boschStatus = "uninitialized";
+String pmsStatus = "uninitialized";
 #define DHTPIN D4     // what digital pin the DHT sensor is connected to
 #define DHTTYPE DHT22   // Options are DHT11, DHT12, DHT22 (AM2302), DHT21 (AM2301)
-#define PMSTX D7 // what Arduino TX digital pin the PMS sensor RX is connected to
+#define PMSTX D7 // (NOT CONNECTED) what Arduino TX digital pin the PMS sensor RX is connected to
 #define PMSRX D6 // what Arduino RX digital pin the PMS sensor TX is connected to
 #define PMS_BAUD 9600 //baud rate for SoftwareSerial for PMS7003
+const uint8_t pmsRetryCountLimit = 5;
 
 Adafruit_BMP280 bmp280; // I2C BMP280 init
 Adafruit_BME280 bme280; // I2C BME280 init
@@ -68,6 +70,14 @@ float boschTemperatureF = 0;
 float boschPressurePa = 0;
 float boschPressureInHg = 0;
 
+// PMS Data
+float pmsPm10Standard = 0;
+float pmsPm25Standard = 0;
+float pmsPm100Standard = 0;
+float pmsPm10Environmental = 0;
+float pmsPm25Environmental = 0;
+float pmsPm100Environmental = 0;
+
 struct pms7003data {
   uint16_t framelen;
   uint16_t pm10_standard, pm25_standard, pm100_standard;
@@ -79,47 +89,40 @@ struct pms7003data {
 
 struct pms7003data pmsData;
 
+// prints the CSV header/schema of the data output
+String getGlobalDataHeader() {
+  return String("dhtHumidityPercent,")
+         + String("dhtTemperatureC,")
+         + String("dhtTemperatureF,")
+         + String("boschHumidityPercent,")
+         + String("boschTemperatureC,")
+         + String("boschTemperatureF,")
+         + String("boschPressurePa,")
+         + String("boschPressureInHg,")
+         + String("pmsPm10Standard,")
+         + String("pmsPm25Standard,")
+         + String("pmsPm100Standard,")
+         + String("pmsPm10Environmental,")
+         + String("pmsPm25Environmental,")
+         + String("pmsPm100Environmental");
+}
 
-
-// method to connect to and initialize whichever Bosch sensor is connected
-void setupBosch() {
-
-  unsigned boschStatus;
-
-  // Try BME280 setup
-  boschStatus = bme280.begin();
-  Log.trace("Wire SensorID was: 0x%l", bme280.sensorID());
-  Log.trace("ID of 0xFF could be a bad address, a BMP 180 or BMP 085");
-  Log.trace("ID of 0x56-0x58 represents a BMP 280");
-  Log.trace("ID of 0x60 represents a BME 280");
-  Log.trace("ID of 0x61 represents a BME 680");
-  if (!boschStatus) {
-    Log.notice("No BME280 found, moving to check next Bosch sensor");
-  } else {
-    Log.notice("BME280 found!\n");
-    boschType = "BME280";
-    bme280.setSampling(Adafruit_BME280::MODE_NORMAL, /* Operating Mode. */
-                       Adafruit_BME280::SAMPLING_X16, /* Temp. oversampling */
-                       Adafruit_BME280::SAMPLING_X16,  /* Pressure oversampling */
-                       Adafruit_BME280::SAMPLING_X16, /* Humidity oversampling */
-                       Adafruit_BME280::FILTER_OFF, /* Filtering. */
-                       Adafruit_BME280::STANDBY_MS_500); /* Standby time. */
-    return;
-  }
-
-  // Try BMP280 setup
-  boschStatus = bmp280.begin(0x76, 0x58); //BMP280 has I2C address 0x76 and chipID of 0x58
-  if (boschStatus) {
-    Log.notice("BMP280 found!\n");
-    boschType = "BMP280";
-    /* Default settings from datasheet. */
-    bmp280.setSampling(Adafruit_BMP280::MODE_NORMAL,     /* Operating Mode. */
-                       Adafruit_BMP280::SAMPLING_X16,     /* Temp. oversampling */
-                       Adafruit_BMP280::SAMPLING_X16,    /* Pressure oversampling */
-                       Adafruit_BMP280::FILTER_X16,      /* Filtering. */
-                       Adafruit_BMP280::STANDBY_MS_500); /* Standby time. */
-  }
-
+// prints the CSV data output of each metric
+String getGlobalDataString() {
+  return String(dhtHumidityPercent, 2) + ","
+         + String(dhtTemperatureC, 2) + ","
+         + String(dhtTemperatureF, 2) + ","
+         + String(boschHumidityPercent, 2) + ","
+         + String(boschTemperatureC, 2) + ","
+         + String(boschTemperatureF, 2) + ","
+         + String(boschPressurePa, 2) + ","
+         + String(boschPressureInHg, 2) + ","
+         + String(pmsPm10Standard, 0) + ","
+         + String(pmsPm25Standard, 0) + ","
+         + String(pmsPm100Standard, 0) + ","
+         + String(pmsPm10Environmental, 0) + ","
+         + String(pmsPm25Environmental, 0) + ","
+         + String(pmsPm100Environmental, 0);
 }
 
 // Logic to handle updating the global sensor data vars from present sensors
@@ -133,7 +136,7 @@ void updateSensorData() {
   Log.verbose("Retrieved new DHT data");
 
   // Get Bosch Data
-  if (boschType.equals("BMP280")) {
+  if (boschStatus.equals("BMP280")) {
     boschHumidityPercent = 1.0F / 0.0F; // intentionally set this to NaN
     boschTemperatureC = bmp280.readTemperature();
     boschTemperatureF = boschTemperatureC * (9.0F / 5.0F) + 32.0F;
@@ -141,18 +144,28 @@ void updateSensorData() {
     boschPressureInHg = boschPressurePa / 3386.38866F;
     Log.verbose("Retrieved new BMP280 data");
 
-  } else if (boschType.equals("BME280")) {
+  } else if (boschStatus.equals("BME280")) {
     boschHumidityPercent = bme280.readHumidity();
     boschTemperatureC = bme280.readTemperature();
     boschTemperatureF = boschTemperatureC * (9.0F / 5.0F) + 32.0F;
     boschPressurePa = bme280.readPressure();
     boschPressureInHg = boschPressurePa / 3386.38866F; // hPA conversion is Pa / 100.0
     Log.verbose("Retrieved new BME280 data");
-  } else if (boschType.equals("uninitialized")) {
+  } else if (boschStatus.equals("uninitialized")) {
     Log.notice("Could not find a valid BMx280, check wiring, address, sensor ID!");
 
   }
 
+  // Get PMS Data
+  if (pmsStatus.equals("PMS7003") && readPmsData(&pmsDigitalSerial)) {
+    pmsPm10Standard = pmsData.pm10_standard;
+    pmsPm25Standard = pmsData.pm25_standard;
+    pmsPm100Standard = pmsData.pm100_standard;
+    pmsPm10Environmental = pmsData.pm10_env;
+    pmsPm25Environmental = pmsData.pm25_env;
+    pmsPm100Environmental = pmsData.pm100_env;
+    Log.verbose("Retrieved new PMS7003 data");
+  } 
 }
 
 // One-time Arduino setup method
@@ -162,7 +175,7 @@ void setup(void) {
   // Serial and logging setup
   Serial.begin(SERIAL_BAUD);
   while (!Serial && !Serial.available()) {}
-  delay(100); //add some delay before we start printing
+  delay(200); //add some delay before we start printing
   Serial.println(); // get off the junk line
   Log.begin(LOG_LEVEL, &Serial);
   Log.setSuffix(printNewline); // put a newline after each log statement
@@ -184,7 +197,23 @@ void setup(void) {
 
   setupBosch(); // run the setup method to initialize one Bosch sensor
   dht.begin(); // initialize the DHT sensor
-  pmsDigitalSerial.begin(PMS_BAUD);
+  pmsDigitalSerial.begin(PMS_BAUD); // Start the SoftSerial for the PMS sensor
+
+  // Give the PMS sensor a few attempts to establish a connection
+  for (uint8_t i = 1; i <= pmsRetryCountLimit; i++) {
+    delay(500);
+    if (pmsDigitalSerial && pmsDigitalSerial.available()) {
+      pmsStatus = "PMS7003";
+      Log.notice("Found PMS7003 on attempt %i!", i);
+      break;
+    } else {
+      Log.notice("PMS7003 not found, %i tries remaining", pmsRetryCountLimit - i);
+    }
+  }
+  if (pmsStatus.equals("uninitialized")) {
+    Log.notice("Could not find a valid PMS7003, check wiring, SoftSerial!");
+
+  }
 
   scheduler.addTask(dataUpdateTask);
   dataUpdateTask.enable();
@@ -199,52 +228,48 @@ void setup(void) {
 void loop(void) {
   httpServer.handleClient(); // if the webserver is accessed, this handles the request
   scheduler.execute(); // keep the timer running for scheduled data updates
-  if (readPMSdata(&pmsDigitalSerial)) {
-    // reading data was successful!
-    Serial.println();
-    Serial.println("---------------------------------------");
-    Serial.println("Concentration Units (standard)");
-    Serial.print("PM 1.0: "); Serial.print(pmsData.pm10_standard);
-    Serial.print("\t\tPM 2.5: "); Serial.print(pmsData.pm25_standard);
-    Serial.print("\t\tPM 10: "); Serial.println(pmsData.pm100_standard);
-    Serial.println("---------------------------------------");
-    Serial.println("Concentration Units (environmental)");
-    Serial.print("PM 1.0: "); Serial.print(pmsData.pm10_env);
-    Serial.print("\t\tPM 2.5: "); Serial.print(pmsData.pm25_env);
-    Serial.print("\t\tPM 10: "); Serial.println(pmsData.pm100_env);
-    Serial.println("---------------------------------------");
-    Serial.print("Particles > 0.3um / 0.1L air:"); Serial.println(pmsData.particles_03um);
-    Serial.print("Particles > 0.5um / 0.1L air:"); Serial.println(pmsData.particles_05um);
-    Serial.print("Particles > 1.0um / 0.1L air:"); Serial.println(pmsData.particles_10um);
-    Serial.print("Particles > 2.5um / 0.1L air:"); Serial.println(pmsData.particles_25um);
-    Serial.print("Particles > 5.0um / 0.1L air:"); Serial.println(pmsData.particles_50um);
-    Serial.print("Particles > 10.0 um / 0.1L air:"); Serial.println(pmsData.particles_100um);
-    Serial.println("---------------------------------------");
+}
+
+
+// method to connect to and initialize whichever Bosch sensor is connected
+void setupBosch() {
+
+  unsigned boschBeginReturn;
+
+  // Try BME280 setup
+  boschBeginReturn = bme280.begin();
+  Log.trace("Wire SensorID was: 0x%l", bme280.sensorID());
+  Log.trace("ID of 0xFF could be a bad address, a BMP 180 or BMP 085");
+  Log.trace("ID of 0x56-0x58 represents a BMP 280");
+  Log.trace("ID of 0x60 represents a BME 280");
+  Log.trace("ID of 0x61 represents a BME 680");
+  if (!boschBeginReturn) {
+    Log.notice("No BME280 found, moving to check next Bosch sensor");
+  } else {
+    Log.notice("BME280 found!\n");
+    boschStatus = "BME280";
+    bme280.setSampling(Adafruit_BME280::MODE_NORMAL, /* Operating Mode. */
+                       Adafruit_BME280::SAMPLING_X16, /* Temp. oversampling */
+                       Adafruit_BME280::SAMPLING_X16,  /* Pressure oversampling */
+                       Adafruit_BME280::SAMPLING_X16, /* Humidity oversampling */
+                       Adafruit_BME280::FILTER_OFF, /* Filtering. */
+                       Adafruit_BME280::STANDBY_MS_500); /* Standby time. */
+    return;
   }
-}
 
-// prints the CSV header/schema of the data output
-String getGlobalDataHeader() {
-  return String("dhtHumidityPercent,")
-         + String("dhtTemperatureC,")
-         + String("dhtTemperatureF,")
-         + String("boschHumidityPercent,")
-         + String("boschTemperatureC,")
-         + String("boschTemperatureF,")
-         + String("boschPressurePa,")
-         + String("boschPressureInHg");
-}
+  // Try BMP280 setup
+  boschBeginReturn = bmp280.begin(0x76, 0x58); //BMP280 has I2C address 0x76 and chipID of 0x58
+  if (boschBeginReturn) {
+    Log.notice("BMP280 found!\n");
+    boschStatus = "BMP280";
+    /* Default settings from datasheet. */
+    bmp280.setSampling(Adafruit_BMP280::MODE_NORMAL,     /* Operating Mode. */
+                       Adafruit_BMP280::SAMPLING_X16,     /* Temp. oversampling */
+                       Adafruit_BMP280::SAMPLING_X16,    /* Pressure oversampling */
+                       Adafruit_BMP280::FILTER_X16,      /* Filtering. */
+                       Adafruit_BMP280::STANDBY_MS_500); /* Standby time. */
+  }
 
-// prints the CSV data output of each metric
-String getGlobalDataString() {
-  return String(dhtHumidityPercent, 2) + ","
-         + String(dhtTemperatureC, 2) + ","
-         + String(dhtTemperatureF, 2) + ","
-         + String(boschHumidityPercent, 2) + ","
-         + String(boschTemperatureC, 2) + ","
-         + String(boschTemperatureF, 2) + ","
-         + String(boschPressurePa, 2) + ","
-         + String(boschPressureInHg, 2);
 }
 
 // LED activates when this is hit. Fetches latest data values and serves them with a header
@@ -264,13 +289,14 @@ void handleNotFound() {
 }
 
 // helper to add a newline at the end of every log statement
-void printNewline(Print* _logOutput) {
+void printNewline(Print * _logOutput) {
   _logOutput->print('\n');
 }
 
-boolean readPMSdata(Stream *s) {
+// PMS data fetcher adapted from https://github.com/adafruit/Adafruit_Learning_System_Guides/blob/master/PMS5003_Air_Quality_Sensor/PMS5003_Arduino/PMS5003_Arduino.ino
+boolean readPmsData(Stream * s) {
   if (! s->available()) {
-    Log.warning("PMS Stream not available")
+    Log.warning("PMS Stream not available");
     return false;
   }
 
@@ -284,7 +310,6 @@ boolean readPMSdata(Stream *s) {
   if (s->available() < 32) {
     return false;
   }
-
   uint8_t buffer[32];
   uint16_t sum = 0;
   s->readBytes(buffer, 32);
@@ -301,13 +326,12 @@ boolean readPMSdata(Stream *s) {
     buffer_u16[i] += (buffer[2 + i * 2] << 8);
   }
 
-  // put it into a nice struct :)
+  // put it into a nice struct
   memcpy((void *)&pmsData, (void *)buffer_u16, 30);
 
   if (sum != pmsData.checksum) {
-    Serial.println("Checksum failure");
+    Log.warning("PMS checksum failure");
     return false;
   }
-  // success!
   return true;
 }
