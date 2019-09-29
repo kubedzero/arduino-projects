@@ -9,4 +9,73 @@
   * Compile log shows towards the end `Creating BIN file "/var/folders/gt/b5zkfzhj0z74_q1z2ngthjt00000gn/T/arduino_build_133328/otaUpdate.ino.bin" using...` so I can use CMD + G to go to that location in the web browser http://ipaddress/firmware or I can run the curl command `curl -u myUsername:myPassword -F "image=@/var/folders/gt/b5zkfzhj0z74_q1z2ngthjt00000gn/T/arduino_build_133328/otaUpdate.ino.bin" ip.address/firmware` 
   * The output location of the BIN doesn't seem to change between recompiles
 * https://arduino.stackexchange.com/questions/40411/hiding-wlan-password-when-pushing-to-github suggests a way to store Wifi passwords and stuff outside the normal file. 
+* Git ignore all files with same name https://stackoverflow.com/questions/8981472/ignore-all-files-with-the-same-name-in-git
+
+
+
+### BME280 Integration
+
+* BME280 is the ENVIRONMENT sensor by Bosch, BMP280 is the PRESSURE sensor. 
+  * BME provides humidity, pressure, and temperature
+  * BMP provides pressure and temperature
+* actively updated Arduino libraries
+  * Sparkfun https://github.com/sparkfun/SparkFun_BME280_Arduino_Library
+  * Adafruit https://github.com/adafruit/Adafruit_BME280_Library
+    * requires companion library https://github.com/adafruit/Adafruit_Sensor which also supports DHT
+    * Separate library for BMP280 
+    * SDA/SCL default to pins 4 & 5 but any two pins can be assigned as SDA/SCL using Wire.begin(SDA,SCL)
+  * finiteSpace/Tyler Glenn https://github.com/finitespace/BME280
+  * BlueDot https://github.com/BlueDot-Arduino/BlueDot_BME280
+* Currently plugged into D1-> SCL and D2-> SDA
+
+### BMP280 Integration
+
+* libraries
+  * similar to BME280 but Adafruit has a separate BMP280 library
+* Adafruit setup reference https://learn.adafruit.com/adafruit-bmp280-barometric-pressure-plus-temperature-sensor-breakout/arduino-test
+
+* Did not find the sensor even with the Adafruit bmp280test on D1->SCL (pin 5) and D2->SDA (pin4) as recommended.
+* https://github.com/adafruit/Adafruit_BMP280_Library/blob/master/Adafruit_BMP280.h#L156 showed me that I can call `bmp.begin` with custom overridden BMP280 address and chipID. Since Adafruit has their own version of the BMP280 I thought maybe one of these values was different. 
+* `bmp.begin(0x76,0x58)` replaced `bmp.begin()` and then I was able to connect. https://github.com/sparkfun/SparkFun_BME280_Arduino_Library/issues/21 gave me the hint
+* chipID of a BMP280 should be 0x58 as per the Bosch BMP280 datasheet. The default I2C address was 0x76 which I think was the issue
+* Arduino recommendation for string representation https://www.arduino.cc/reference/en/language/variables/data-types/stringobject/ to avoid the compiler warning "deprecated conversion from string constant to 'char*'"
+  * I can declare mutable strings with `String varName = "someString"` and then `varName = "newString"` and can compare string with Boolean output with `varname.equals("anotherString")`
+* The debug level of the underlying ESP8266 firmware can be changed in the Boards dropdown by selecting the Debug port and Debug level
+* Set the SSL support to basic to save space, since we're not using SSL for this
+* Trying a new TaskScheduler library https://github.com/arkhipenko/TaskScheduler instead of the the old cloned-to-github-by-random-people SimpleTimer library written by Marcello Romani https://github.com/zomerfeld/SimpleTimerArduino  https://playground.arduino.cc/Code/SimpleTimer/
+  * Chrono https://github.com/SofaPirate/Chrono also seems to be an option
+* Using a logging library https://github.com/thijse/Arduino-Log which will let me easily enable and disable different log levels going out to the Serial interface. For the most part I don't want to see every sensor update, but I do want to see whenever the device is accessed
+* https://stackoverflow.com/questions/13294067/how-to-convert-string-to-char-array-in-c copying a string into a char array since the Logging library I chose doesn't support Strings https://github.com/thijse/Arduino-Log/blob/master/examples/Log/Log.ino#L61
+
+### PMS7003 Integration
+
+* No Adafruit library but there is https://github.com/fu-hsi/pms. According to https://learn.adafruit.com/pm25-air-quality-sensor/arduino-code though there doesn't really need to be a library, it's just softwareserial and whatever's returned from that
+* Used to be set up with the library mentioned above. Pinout from the PMS7003 was
+  * PMS -> Arduino (reference direction)
+  * nc (red) -> not connected
+  * nc (black) -> not connected
+  * rat (orange) -> not connected
+  * tx (green) -> D6
+  * rx (blue) -> D7 BUT not actually needed to function since we're not talking to the PMS7003
+  * set (white) -> not connected
+  * gnd (red) -> GND
+  * vcc (purple) -> 5v or 3.3v works. HOWEVER the datasheet says "DC 5V power supply is needed because the FAN should be driven by 5V. But the high level of data pin is 3.3V. Level conversion unit should be used if the power of host MCU is 5V."
+* Refs
+  * https://kamami.com/gas-sensors/564008-plantower-pms7003-laser-dust-sensor.html
+  * https://www.espruino.com/PMS7003
+  * https://aqicn.org/sensor/pms5003-7003/
+  * https://learn.adafruit.com/pm25-air-quality-sensor/arduino-code
+  * https://github.com/fu-hsi/pms
+
+
+
+### Using
+
+* The webpage output in its current state appears as the following
+
+* ```
+  dhtHumidityPercent,dhtTemperatureC,dhtTemperatureF,boschHumidityPercent,boschTemperatureC,boschTemperatureF,boschPressurePa,boschPressureInHg,pmsPm10Standard,pmsPm25Standard,pmsPm100Standard,pmsPm10Environmental,pmsPm25Environmental,pmsPm100Environmental
+  58.60,16.70,62.06,55.33,14.00,57.20,101017.17,29.83, 0, 1, 1, 0, 1, 1
+  ```
+
 * 
