@@ -57,6 +57,15 @@ Adafruit_BMP280 bmp280; // I2C BMP280 init
 Adafruit_BME280 bme280; // I2C BME280 init
 DHT dht(DHTPIN, DHTTYPE); // Initialize DHT sensor.
 SoftwareSerial pmsDigitalSerial(PMSRX, PMSTX); // RX, TX to plug TX, RX of PMS into
+struct pms7003data {
+  uint16_t framelen;
+  uint16_t pm10_standard, pm25_standard, pm100_standard;
+  uint16_t pm10_env, pm25_env, pm100_env;
+  uint16_t particles_03um, particles_05um, particles_10um, particles_25um, particles_50um, particles_100um;
+  uint16_t unused;
+  uint16_t checksum;
+};
+struct pms7003data pmsData;
 
 // DHT Data
 float dhtHumidityPercent = 0;
@@ -77,17 +86,6 @@ float pmsPm100Standard = 0;
 float pmsPm10Environmental = 0;
 float pmsPm25Environmental = 0;
 float pmsPm100Environmental = 0;
-
-struct pms7003data {
-  uint16_t framelen;
-  uint16_t pm10_standard, pm25_standard, pm100_standard;
-  uint16_t pm10_env, pm25_env, pm100_env;
-  uint16_t particles_03um, particles_05um, particles_10um, particles_25um, particles_50um, particles_100um;
-  uint16_t unused;
-  uint16_t checksum;
-};
-
-struct pms7003data pmsData;
 
 // prints the CSV header/schema of the data output
 String getGlobalDataHeader() {
@@ -127,30 +125,29 @@ String getGlobalDataString() {
 
 // Logic to handle updating the global sensor data vars from present sensors
 void updateSensorData() {
-  // Get DHT Data
-  // Reading temperature or humidity takes about 250 milliseconds!
+  // Get DHT Data. Reading temperature or humidity takes about 250 milliseconds!
   // Sensor readings may also be up to 2 seconds 'old' (it is a very slow sensor)
   dhtHumidityPercent = dht.readHumidity();
   dhtTemperatureC = dht.readTemperature();
   dhtTemperatureF = dht.readTemperature(true);
-  Log.verbose("Retrieved new DHT data");
+  Log.trace("Retrieved new DHT data");
 
   // Get Bosch Data
   if (boschStatus.equals("BMP280")) {
-    boschHumidityPercent = 1.0F / 0.0F; // intentionally set this to NaN
+    boschHumidityPercent = 1.0F / 0.0F; // intentionally set this to inf to signify no reading
     boschTemperatureC = bmp280.readTemperature();
-    boschTemperatureF = boschTemperatureC * (9.0F / 5.0F) + 32.0F;
+    boschTemperatureF = boschTemperatureC * (9.0F / 5.0F) + 32.0F; // manual *C to *F conversion
     boschPressurePa = bmp280.readPressure();
-    boschPressureInHg = boschPressurePa / 3386.38866F;
-    Log.verbose("Retrieved new BMP280 data");
+    boschPressureInHg = boschPressurePa / 3386.38866F; // manual Pascals to inches of Mercury conversion
+    Log.trace("Retrieved new BMP280 data");
 
   } else if (boschStatus.equals("BME280")) {
     boschHumidityPercent = bme280.readHumidity();
     boschTemperatureC = bme280.readTemperature();
     boschTemperatureF = boschTemperatureC * (9.0F / 5.0F) + 32.0F;
     boschPressurePa = bme280.readPressure();
-    boschPressureInHg = boschPressurePa / 3386.38866F; // hPA conversion is Pa / 100.0
-    Log.verbose("Retrieved new BME280 data");
+    boschPressureInHg = boschPressurePa / 3386.38866F; // manual Pascals to inches of Mercury conversion
+    Log.trace("Retrieved new BME280 data");
   } else if (boschStatus.equals("uninitialized")) {
     Log.notice("Could not find a valid BMx280, check wiring, address, sensor ID!");
 
@@ -164,15 +161,15 @@ void updateSensorData() {
     pmsPm10Environmental = pmsData.pm10_env;
     pmsPm25Environmental = pmsData.pm25_env;
     pmsPm100Environmental = pmsData.pm100_env;
-    Log.verbose("Retrieved new PMS7003 data");
-  } 
+    Log.trace("Retrieved new PMS7003 data");
+  }
 }
 
 // One-time Arduino setup method
 void setup(void) {
 
   pinMode(LED_BUILTIN, OUTPUT); // Blue(GeekCreit) or Red(NodeMCU 0.9) LED initialized LOW (LED ON)
-  // Serial and logging setup
+  // Serial, logging, WiFi setup
   Serial.begin(SERIAL_BAUD);
   while (!Serial && !Serial.available()) {}
   delay(200); //add some delay before we start printing
@@ -180,20 +177,7 @@ void setup(void) {
   Log.begin(LOG_LEVEL, &Serial);
   Log.setSuffix(printNewline); // put a newline after each log statement
   Log.notice("Booting Sketch...");
-
-  // Connect to WiFi network
-  Log.notice("Connecting to %s", ssid);
-  WiFi.mode(WIFI_AP_STA);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Log.notice("waiting...");
-  }
-  String ipAddrString = WiFi.localIP().toString(); // convert the IPAddress opject to a String
-  char * ipAddrChar = new char [ipAddrString.length() + 1]; // allocate space for a char array
-  strcpy (ipAddrChar, ipAddrString.c_str()); // populate the char array
-  Log.notice("Connected, IP address is %s", ipAddrChar); // pass the char array to the logger
-  digitalWrite(LED_BUILTIN, HIGH); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
+  WiFiConnect();
 
   setupBosch(); // run the setup method to initialize one Bosch sensor
   dht.begin(); // initialize the DHT sensor
@@ -205,37 +189,58 @@ void setup(void) {
     if (pmsDigitalSerial && pmsDigitalSerial.available()) {
       pmsStatus = "PMS7003";
       Log.notice("Found PMS7003 on attempt %i!", i);
-      break;
+      break; // exit the loop early as we've found the sensor
     } else {
       Log.notice("PMS7003 not found, %i tries remaining", pmsRetryCountLimit - i);
     }
   }
   if (pmsStatus.equals("uninitialized")) {
     Log.notice("Could not find a valid PMS7003, check wiring, SoftSerial!");
-
   }
 
-  scheduler.addTask(dataUpdateTask);
-  dataUpdateTask.enable();
+  scheduler.addTask(dataUpdateTask); // initialize the scheduled data gathering task
+  dataUpdateTask.enable(); // enable the data gathering task
 
   httpUpdater.setup(&httpServer, update_path, update_username, update_password); // OTA server setup
-  httpServer.onNotFound(handleNotFound);        // When a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
-  httpServer.on("/", handleRoot);
+  httpServer.onNotFound(handleNotFound); // When a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
+  httpServer.on("/", handleRoot); // take care of the page we populate with our information
   httpServer.begin();
 }
 
 // Looping Arduino method
 void loop(void) {
+  WiFiConnect(); // Make sure the WiFi maintains connection. Library does this for us but this has LED notification
   httpServer.handleClient(); // if the webserver is accessed, this handles the request
   scheduler.execute(); // keep the timer running for scheduled data updates
 }
 
+// Connect or reconnect to WiFi network
+void WiFiConnect() {
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    digitalWrite(LED_BUILTIN, LOW); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to on
+    Log.notice("WiFi is not connected. Connecting to %s", ssid);
+    WiFi.disconnect();
+    WiFi.mode(WIFI_AP_STA);
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(1000);
+      Log.notice("waiting...");
+    }
+    String ipAddrString = WiFi.localIP().toString(); // convert the IPAddress opject to a String
+    char * ipAddrChar = new char [ipAddrString.length() + 1]; // allocate space for a char array
+    strcpy (ipAddrChar, ipAddrString.c_str()); // populate the char array
+    Log.notice("Connected, IP address is %s", ipAddrChar); // pass the char array to the logger
+    digitalWrite(LED_BUILTIN, HIGH); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
+  } else {
+    Log.verbose("WiFi is connected, nothing to do");
+  }
+}
 
-// method to connect to and initialize whichever Bosch sensor is connected
+// method to connect and initialize whichever Bosch sensor is connected
 void setupBosch() {
 
   unsigned boschBeginReturn;
-
   // Try BME280 setup
   boschBeginReturn = bme280.begin();
   Log.trace("Wire SensorID was: 0x%l", bme280.sensorID());
@@ -246,30 +251,28 @@ void setupBosch() {
   if (!boschBeginReturn) {
     Log.notice("No BME280 found, moving to check next Bosch sensor");
   } else {
-    Log.notice("BME280 found!\n");
+    Log.notice("BME280 found!");
     boschStatus = "BME280";
-    bme280.setSampling(Adafruit_BME280::MODE_NORMAL, /* Operating Mode. */
-                       Adafruit_BME280::SAMPLING_X16, /* Temp. oversampling */
-                       Adafruit_BME280::SAMPLING_X16,  /* Pressure oversampling */
-                       Adafruit_BME280::SAMPLING_X16, /* Humidity oversampling */
-                       Adafruit_BME280::FILTER_OFF, /* Filtering. */
-                       Adafruit_BME280::STANDBY_MS_500); /* Standby time. */
-    return;
+    bme280.setSampling(Adafruit_BME280::MODE_NORMAL, // Operating Mode
+                       Adafruit_BME280::SAMPLING_X16, // Temp. oversampling
+                       Adafruit_BME280::SAMPLING_X16, // Pressure oversampling
+                       Adafruit_BME280::SAMPLING_X16, // Humidity oversampling
+                       Adafruit_BME280::FILTER_OFF, // Filtering
+                       Adafruit_BME280::STANDBY_MS_500); // Standby time
+    return; // exit early as we've found a sensor
   }
 
   // Try BMP280 setup
   boschBeginReturn = bmp280.begin(0x76, 0x58); //BMP280 has I2C address 0x76 and chipID of 0x58
   if (boschBeginReturn) {
-    Log.notice("BMP280 found!\n");
+    Log.notice("BMP280 found!");
     boschStatus = "BMP280";
-    /* Default settings from datasheet. */
-    bmp280.setSampling(Adafruit_BMP280::MODE_NORMAL,     /* Operating Mode. */
-                       Adafruit_BMP280::SAMPLING_X16,     /* Temp. oversampling */
-                       Adafruit_BMP280::SAMPLING_X16,    /* Pressure oversampling */
-                       Adafruit_BMP280::FILTER_X16,      /* Filtering. */
-                       Adafruit_BMP280::STANDBY_MS_500); /* Standby time. */
+    bmp280.setSampling(Adafruit_BMP280::MODE_NORMAL, // Operating Mode
+                       Adafruit_BMP280::SAMPLING_X16, // Temp. oversampling
+                       Adafruit_BMP280::SAMPLING_X16, // Pressure oversampling
+                       Adafruit_BMP280::FILTER_X16, // Filtering
+                       Adafruit_BMP280::STANDBY_MS_500); // Standby time
   }
-
 }
 
 // LED activates when this is hit. Fetches latest data values and serves them with a header
@@ -297,7 +300,7 @@ void printNewline(Print * _logOutput) {
 boolean readPmsData(Stream * s) {
   if (! s->available()) {
     Log.warning("PMS Stream not available");
-    return false;
+    return false; // exit early
   }
 
   // Read a byte at a time until we get to the special '0x42' start-byte
@@ -326,12 +329,12 @@ boolean readPmsData(Stream * s) {
     buffer_u16[i] += (buffer[2 + i * 2] << 8);
   }
 
-  // put it into a nice struct
+  // put it into a pms7003data struct as defined earlier
   memcpy((void *)&pmsData, (void *)buffer_u16, 30);
 
   if (sum != pmsData.checksum) {
     Log.warning("PMS checksum failure");
-    return false;
+    return false; // exit false if the checksum provided by the sensor doesn't match the calculated value
   }
   return true;
 }
