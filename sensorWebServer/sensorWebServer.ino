@@ -62,7 +62,7 @@ void setupBosch() {
 
   // Try BME280 setup
   boschStatus = bme280.begin();
-  Serial.print("SensorID was: 0x"); Serial.println(bme280.sensorID(), 16);
+  Serial.print("Wire SensorID was: 0x"); Serial.println(bme280.sensorID(), 16);
   Serial.println("ID of 0xFF could be a bad address, a BMP 180 or BMP 085");
   Serial.println("ID of 0x56-0x58 represents a BMP 280");
   Serial.println("ID of 0x60 represents a BME 280");
@@ -167,27 +167,53 @@ void setup(void) {
   dht.begin(); // initialize the DHT sensor
 
   httpUpdater.setup(&httpServer, update_path, update_username, update_password); // OTA server setup
-
+  httpServer.onNotFound(handleNotFound);        // When a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
+  httpServer.on("/", handleRoot);
   httpServer.begin();
 }
 
 void loop(void) {
   httpServer.handleClient();
-  updateSensorData();
-  printValues();
-  delay(2000);
+//  updateSensorData();
+//  Serial.println("Values:");
+//  Serial.println(getGlobalDataHeader());
+//  Serial.println(getGlobalDataString());
+//  delay(2000);
 }
 
-void printValues() {
-  Serial.println("Values:");
-  Serial.println("dhtHumidityPercent " + String(dhtHumidityPercent, 2));
-  Serial.println("dhtTemperatureC " + String(dhtTemperatureC, 2));
-  Serial.println("dhtTemperatureF " + String(dhtTemperatureF, 2));
-  Serial.println("boschHumidityPercent " + String(boschHumidityPercent, 2));
-  Serial.println("boschTemperatureC " + String(boschTemperatureC, 2));
-  Serial.println("boschTemperatureF " + String(boschTemperatureF, 2));
-  Serial.println("boschPressurePa " + String(boschPressurePa, 2));
-  Serial.println("boschPressureInHg " + String(boschPressureInHg, 2));
-  Serial.println();
+String getGlobalDataHeader() {
+  return String("dhtHumidityPercent,")
+         + String("dhtTemperatureC,")
+         + String("dhtTemperatureF,")
+         + String("boschHumidityPercent,")
+         + String("boschTemperatureC,")
+         + String("boschTemperatureF,")
+         + String("boschPressurePa,")
+         + String("boschPressureInHg");
+}
 
+String getGlobalDataString() {
+  return String(dhtHumidityPercent, 2) + ","
+         + String(dhtTemperatureC, 2) + ","
+         + String(dhtTemperatureF, 2) + ","
+         + String(boschHumidityPercent, 2) + ","
+         + String(boschTemperatureC, 2) + ","
+         + String(boschTemperatureF, 2) + ","
+         + String(boschPressurePa, 2) + ","
+         + String(boschPressureInHg, 2);
+}
+
+void handleRoot() {
+  digitalWrite(LED_BUILTIN, LOW); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to on
+  Serial.println("Serving root webpage");
+  httpServer.send(200, "text/plain", getGlobalDataHeader() + String("\n") + getGlobalDataString());   // Send HTTP status 200 (Ok) and send some text to the browser/client
+  digitalWrite(LED_BUILTIN, HIGH); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
+
+}
+
+void handleNotFound() {
+  digitalWrite(LED_BUILTIN, LOW); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to on
+  Serial.println("Serving 404 not found webpage");
+  httpServer.send(404, "text/plain", "404: Not found"); // Send HTTP status 404 (Not Found) when there's no handler for the URI in the request
+  digitalWrite(LED_BUILTIN, HIGH); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
 }
