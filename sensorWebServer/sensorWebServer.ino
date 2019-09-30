@@ -342,8 +342,7 @@ boolean readPmsData(Stream * s) {
   if (sum != pmsData.checksum) {
     Log.warning("PMS checksum %d did not match calculated sum %d", pmsData.checksum, sum);
     return false; // exit false if the checksum provided by the sensor doesn't match the calculated value
-  } else {
-    Log.trace("PMS checksum %d matched calculated sum", pmsData.checksum);
   }
+  Log.trace("PMS checksum %d matched calculated sum", pmsData.checksum);
   return true;
 }
