@@ -8,15 +8,16 @@
 
 // libraries for sensor reading
 #include <Wire.h> // for BMP280 or BME280 via I2C
-#include <Adafruit_Sensor.h> // Adafruit unified sensor library
-#include <Adafruit_BMP280.h> // Adafruit extension library for BMP280
-#include <Adafruit_BME280.h> // Adafruit extension library for BME280
-#include <DHT.h> // Adafruit extension library for DHT22
+#include <Adafruit_Sensor.h> // 1.0.3 Adafruit unified sensor library
+#include <Adafruit_BMP280.h> // 1.0.5 Adafruit extension library for BMP280
+#include <Adafruit_BME280.h> // 1.0.10 Adafruit extension library for BME280
+#include <DHT.h> // 1.3.7 Adafruit extension library for DHT22
+#include <PMS.h> // 1.1.0 Mariusz Kacki (fu-hsi) library for PMS x003 family sensors
 
 // other libraries
 #include <string.h> // string comparison
-#include <TaskScheduler.h> // library by arkhipenko for periodic data updates
-#include <ArduinoLog.h> // library by thijse for outputting different log levels
+#include <TaskScheduler.h> // 3.0.2 library by arkhipenko for periodic data updates
+#include <ArduinoLog.h> // 1.0.3 library by thijse for outputting different log levels
 #include <SoftwareSerial.h> // library for assigning pins as Serial ports, for PMS7003
 
 
@@ -51,21 +52,15 @@ String pmsStatus = "uninitialized";
 #define PMSTX D7 // (NOT CONNECTED) what Arduino TX digital pin the PMS sensor RX is connected to
 #define PMSRX D6 // what Arduino RX digital pin the PMS sensor TX is connected to
 #define PMS_BAUD 9600 //baud rate for SoftwareSerial for PMS7003
-const uint8_t pmsRetryCountLimit = 5;
+#define PMS_RETRY_LIMIT 5 // Limit the number of connection attempts to the PMS sensor before giving up
+
 
 Adafruit_BMP280 bmp280; // I2C BMP280 init
 Adafruit_BME280 bme280; // I2C BME280 init
 DHT dht(DHTPIN, DHTTYPE); // Initialize DHT sensor.
 SoftwareSerial pmsDigitalSerial(PMSRX, PMSTX); // RX, TX to plug TX, RX of PMS into
-struct pms7003data {
-  uint16_t framelen;
-  uint16_t pm10_standard, pm25_standard, pm100_standard;
-  uint16_t pm10_env, pm25_env, pm100_env;
-  uint16_t particles_03um, particles_05um, particles_10um, particles_25um, particles_50um, particles_100um;
-  uint16_t unused;
-  uint16_t checksum;
-};
-struct pms7003data pmsData;
+PMS pms(pmsDigitalSerial);
+PMS::DATA pmsData;
 
 // DHT Data
 float dhtHumidityPercent = 0;
@@ -130,7 +125,9 @@ void updateSensorData() {
   dhtHumidityPercent = dht.readHumidity();
   dhtTemperatureC = dht.readTemperature();
   dhtTemperatureF = dht.readTemperature(true);
-  Log.trace("Retrieved new DHT data");
+  if (!isnan(dhtHumidityPercent) || !isnan(dhtTemperatureC) || !isnan(dhtTemperatureF)) {
+    Log.trace("Retrieved new DHT data");
+  }
 
   // Get Bosch Data
   if (boschStatus.equals("BMP280")) {
@@ -154,20 +151,19 @@ void updateSensorData() {
   }
 
   // Get PMS Data
-  if (pmsStatus.equals("PMS7003") && readPmsData(&pmsDigitalSerial)) {
-    pmsPm10Standard = pmsData.pm10_standard;
-    pmsPm25Standard = pmsData.pm25_standard;
-    pmsPm100Standard = pmsData.pm100_standard;
-    pmsPm10Environmental = pmsData.pm10_env;
-    pmsPm25Environmental = pmsData.pm25_env;
-    pmsPm100Environmental = pmsData.pm100_env;
+  if (pmsStatus.equals("PMS7003") && pms.readUntil(pmsData)) { // readUntil has 1000ms default timeout to get data
+    pmsPm10Standard = pmsData.PM_SP_UG_1_0;
+    pmsPm25Standard = pmsData.PM_SP_UG_2_5;
+    pmsPm100Standard = pmsData.PM_SP_UG_10_0;
+    pmsPm10Environmental = pmsData.PM_AE_UG_1_0;
+    pmsPm25Environmental = pmsData.PM_AE_UG_2_5;
+    pmsPm100Environmental = pmsData.PM_AE_UG_10_0;
     Log.trace("Retrieved new PMS7003 data");
   }
 }
 
 // One-time Arduino setup method
 void setup(void) {
-
   pinMode(LED_BUILTIN, OUTPUT); // Blue(GeekCreit) or Red(NodeMCU 0.9) LED initialized LOW (LED ON)
   // Serial, logging, WiFi setup
   Serial.begin(SERIAL_BAUD);
@@ -184,14 +180,14 @@ void setup(void) {
   pmsDigitalSerial.begin(PMS_BAUD); // Start the SoftSerial for the PMS sensor
 
   // Give the PMS sensor a few attempts to establish a connection
-  for (uint8_t i = 1; i <= pmsRetryCountLimit; i++) {
+  for (uint8_t i = 1; i <= PMS_RETRY_LIMIT; i++) {
     delay(500);
     if (pmsDigitalSerial && pmsDigitalSerial.available()) {
       pmsStatus = "PMS7003";
       Log.notice("Found PMS7003 on attempt %i!", i);
       break; // exit the loop early as we've found the sensor
     } else {
-      Log.notice("PMS7003 not found, %i tries remaining", pmsRetryCountLimit - i);
+      Log.notice("PMS7003 not found, %i tries remaining", PMS_RETRY_LIMIT - i);
     }
   }
   if (pmsStatus.equals("uninitialized")) {
@@ -239,7 +235,6 @@ void WiFiConnect() {
 
 // method to connect and initialize whichever Bosch sensor is connected
 void setupBosch() {
-
   unsigned boschBeginReturn;
   // Try BME280 setup
   boschBeginReturn = bme280.begin();
@@ -294,55 +289,4 @@ void handleNotFound() {
 // helper to add a newline at the end of every log statement
 void printNewline(Print * _logOutput) {
   _logOutput->print('\n');
-}
-
-// PMS data fetcher adapted from https://github.com/adafruit/Adafruit_Learning_System_Guides/blob/master/PMS5003_Air_Quality_Sensor/PMS5003_Arduino/PMS5003_Arduino.ino
-boolean readPmsData(Stream * s) {
-  if (! s->available()) {
-    Log.warning("PMS Stream not available");
-    return false;
-  }
-
-  // Read ahead a byte at a time until we get to the special '0x42' start-byte
-  uint8_t bytesMovedAhead = 0;
-  while (s->peek() != 0x42) {
-    s->read();
-    bytesMovedAhead++;
-  }
-  if (bytesMovedAhead > 0) {
-    Log.trace("PMS moved %d read bytes ahead to find 0x42 start-byte");
-  }
-
-  // Make sure the full payload is available
-  if (s->available() < 32) {
-    Log.warning("Less than 32 PMS read bytes available, canceling PMS sensor update");
-    return false;
-  }
-
-  // Now read all 32 bytes
-  uint8_t buffer[32];
-  uint16_t sum = 0;
-  s->readBytes(buffer, 32);
-
-  // get checksum ready
-  for (uint8_t i = 0; i < 30; i++) {
-    sum += buffer[i];
-  }
-
-  // The data comes in endian'd, this solves it so it works on all platforms
-  uint16_t buffer_u16[15];
-  for (uint8_t i = 0; i < 15; i++) {
-    buffer_u16[i] = buffer[2 + i * 2 + 1];
-    buffer_u16[i] += (buffer[2 + i * 2] << 8);
-  }
-
-  // put it into a pms7003data struct as defined earlier
-  memcpy((void *)&pmsData, (void *)buffer_u16, 30);
-
-  if (sum != pmsData.checksum) {
-    Log.warning("PMS checksum %d did not match calculated sum %d", pmsData.checksum, sum);
-    return false; // exit false if the checksum provided by the sensor doesn't match the calculated value
-  }
-  Log.trace("PMS checksum %d matched calculated sum", pmsData.checksum);
-  return true;
 }
