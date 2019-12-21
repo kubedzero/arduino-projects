@@ -35,7 +35,9 @@ Scheduler scheduler;
 
 
 // Webserver/OTA update variables and constants
+const char* root_path = "/"; // URL path to get to the root page
 const char* update_path = "/firmware"; // URL path to get to firmware update
+const char* restart_path = "/restart"; // URL path to get to the Restart page
 const char* update_username = WEB_UPDATE_USER; // from creds file
 const char* update_password = WEB_UPDATE_PASS; // from creds file
 const char* ssid = WIFI_SSID; // from creds file
@@ -199,7 +201,8 @@ void setup(void) {
 
   httpUpdater.setup(&httpServer, update_path, update_username, update_password); // OTA server setup
   httpServer.onNotFound(handleNotFound); // When a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
-  httpServer.on("/", handleRoot); // take care of the page we populate with our information
+  httpServer.on(root_path, handleRoot); // take care of the page we populate with our information
+  httpServer.on(restart_path, handleRestart); // Calling this page will trigger a restart/reboot of the ESP
   httpServer.begin();
 }
 
@@ -275,6 +278,16 @@ void handleRoot() {
   digitalWrite(LED_BUILTIN, LOW); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to on
   Log.notice("Serving root webpage at %l milliseconds", millis()); //print out milliseconds since program launch, resets every 50d
   httpServer.send(200, "text/plain", getGlobalDataHeader() + String("\n") + getGlobalDataString());   // Send HTTP status 200 (Ok) and send some text to the browser/client
+  digitalWrite(LED_BUILTIN, HIGH); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
+
+}
+// LED activates when this is hit. Sends a page with a button that can be used to reboot
+void handleRestart() {
+  digitalWrite(LED_BUILTIN, LOW); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to on
+  Log.notice("Serving restart webpage at %l milliseconds", millis()); //print out milliseconds since program launch, resets every 50d
+  httpServer.send(200, "text/plain", "A restart/reboot of the ESP is being triggered");   // Send HTTP status 200 (Ok) and send some text to the browser/client
+  delay(250); // Give the HttpServer some time to send the response before restarting
+  ESP.restart(); // Reboot the ESP
   digitalWrite(LED_BUILTIN, HIGH); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
 
 }
