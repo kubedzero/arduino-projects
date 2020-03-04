@@ -11,6 +11,7 @@
 * https://arduino.stackexchange.com/questions/40411/hiding-wlan-password-when-pushing-to-github suggests a way to store Wifi passwords and stuff outside the normal file. 
 * Git ignore all files with same name https://stackoverflow.com/questions/8981472/ignore-all-files-with-the-same-name-in-git
 * WiFi reconnect method idea https://www.esp8266.com/viewtopic.php?f=32&t=8286
+* Currently, the ESPs are all also broadcasting a WiFi network. https://arduino-esp8266.readthedocs.io/en/latest/esp8266wifi/soft-access-point-class.html#softapdisconnect seems to describe this as a SoftAP because it's using the same hardware as the WiFi connection. Apparently it can be turned off with `WiFi.softAPdisconnect(true)`. Alternatively, https://arduino-esp8266.readthedocs.io/en/latest/esp8266wifi/readme.html notes we can just initialize Wifi with a different mode, maybe STA instead of `WiFi.mode(WIFI_AP_STA);` https://arduino-esp8266.readthedocs.io/en/latest/esp8266wifi/generic-class.html confirms this, notes that `WiFi.mode(m)`: set mode to `WIFI_AP`, `WIFI_STA`, `WIFI_AP_STA` or `WIFI_OFF
 
 
 

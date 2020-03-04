@@ -220,7 +220,7 @@ void WiFiConnect() {
     digitalWrite(LED_BUILTIN, LOW); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to on
     Log.notice("WiFi is not connected. Connecting to %s", ssid);
     WiFi.disconnect();
-    WiFi.mode(WIFI_AP_STA);
+    WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
     while (WiFi.status() != WL_CONNECTED) {
       delay(1000);
