@@ -49,6 +49,7 @@ ESP8266HTTPUpdateServer httpUpdater;
 // Sensor inits, constants, global variables
 String boschStatus = "uninitialized";
 String pmsStatus = "uninitialized";
+#define BME280ADDRESS 0x76 // the I2C address of the BME280 used
 #define DHTPIN D4     // what digital pin the DHT sensor is connected to
 #define DHTTYPE DHT22   // Options are DHT11, DHT12, DHT22 (AM2302), DHT21 (AM2301)
 #define PMSTX D7 // (NOT CONNECTED) what Arduino TX digital pin the PMS sensor RX is connected to
@@ -240,11 +241,11 @@ void WiFiConnect() {
 void setupBosch() {
   unsigned boschBeginReturn;
   // Try BME280 setup
-  boschBeginReturn = bme280.begin();
-  Log.trace("Wire SensorID was: 0x%l", bme280.sensorID());
-  Log.trace("ID of 0xFF could be a bad address, a BMP 180 or BMP 085");
+  boschBeginReturn = bme280.begin(BME280ADDRESS, &Wire);
+  Log.trace("BME reports the wire sensorID as: 0x%l", bme280.sensorID());
+  Log.trace("ID of 0xFF/255 could be a bad address, a BMP 180 or BMP 085");
   Log.trace("ID of 0x56-0x58 represents a BMP 280");
-  Log.trace("ID of 0x60 represents a BME 280");
+  Log.trace("ID of 0x60/76 represents a BME 280");
   Log.trace("ID of 0x61 represents a BME 680");
   if (!boschBeginReturn) {
     Log.notice("No BME280 found, moving to check next Bosch sensor");

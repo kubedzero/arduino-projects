@@ -29,6 +29,8 @@
   * finiteSpace/Tyler Glenn https://github.com/finitespace/BME280
   * BlueDot https://github.com/BlueDot-Arduino/BlueDot_BME280
 * Currently plugged into D1-> SCL and D2-> SDA
+* 2020/03/04 Update: Trying to update from the 1.1.0 version of the BME280 library to the 2.0.1 version, which notes a breaking change of dumbing down the sensor detection. Currently in 1.1.0 my Trace logs show `Wire SensorID was: 0x96` whereas I think it's expecting 0x77 or 0x76. After updating the library though the trace shows the `Wire SensorID was: 0x255`. I had to update the signature to `bme280.begin(0x76, &Wire)` to get it working, and then it worked just as it used to. 
+* https://playground.arduino.cc/Main/I2cScanner/ helped me scan through the I2C addresses to find what was connected, and helped identify that 0x96 was not the correct address
 
 ### BMP280 Integration
 
