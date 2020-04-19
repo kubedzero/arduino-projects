@@ -73,6 +73,21 @@
 
 
 
+### UV Sensor Integration
+
+* Bought a VEML6075 sensor from AliExpress https://www.aliexpress.com/item/32797545230.html?spm=a2g0s.9042311.0.0.5b784c4dAI9lSe for about 4 dollars. It measures UVA and UVB intensity and also calculates the UV index  approximation
+* I was able to use the SparkFun VEML6075 library while the sensor's SCL pin was connected to the NodeMCU D1 pin and the SDA pin was connected to the NodeMCU D2 pin, and then two other connections for 3.3v power (5v apparently also works) and ground. 
+* I was also able to use the I2C scanner https://playground.arduino.cc/Main/I2cScanner/ to confirm the sensor was recognized and on the right pins before trying the library
+* My next goal is to get this working on an arbitrary pin so that I don't have to displace the DHT22 and BME280 and PMS7003 on the other boards if I want to use this. 
+  * The .h file shows two ways to initalize, `boolean begin(void);` that returns a boolean and `VEML6075_error_t begin(TwoWire &wirePort);` that returns an enum defined above which has some different error codes. It takes in a TwoWire with a wire port, not exactly sure what that means. However, in the .cpp file it appeards that the simple begin is just a wrapper that passes Wire into the more complex input. `if (begin(Wire) == VEML6075_ERROR_SUCCESS)` so if I can just define Wire on a different port I think I'll be OK
+  * https://www.arduino.cc/en/reference/wire has some information on wire
+  * `Wire.begin(D1, D2); /* join i2c bus with SDA=D1 and SCL=D2 of NodeMCU */` was retrieved from https://www.electronicwings.com/nodemcu/nodemcu-i2c-with-arduino-ide which gives us the syntax I guess
+  * https://www.esp8266.com/viewtopic.php?f=32&t=10899 has some information, it notes Wire is global so I'd have to initialize something else such as TwoWire, aka `TwoWire Wire2 = TwoWire();` and then `Wire2.begin(12,13);`
+  * BUT apparently https://electronics.stackexchange.com/questions/25278/how-to-connect-multiple-i2c-interface-devices-into-a-single-pin-a4-sda-and-a5 all the SDAs and SCLs can be wired physically together without using separate pins, and the addressing functionality will keep them working. If I understand correctly, then the BMP/UV sensor could all techincally be on the same SDA and SCL pins and still work fine. 
+* I was able to use the D1/D2 pins the way I already had for the BMx280. Instead of routing right to the BMx280 I had it go to a breadboard that allowed me to split the SDA/SCL/VCC/GND between the two sensor boards. They were both picked up completely normally, nice!
+
+
+
 ### Using
 
 * The webpage output in its current state appears as the following

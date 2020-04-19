@@ -13,6 +13,7 @@
 #include <Adafruit_BME280.h> // 2.0.1 Adafruit extension library for BME280
 #include <DHT.h> // 1.3.8 Adafruit DHT Sensor Library for DHT22
 #include <PMS.h> // 1.1.0 Mariusz Kacki (fu-hsi) library for PMS x003 family sensors
+#include <SparkFun_VEML6075_Arduino_Library.h> // 1.0.4 library for VEML6075 UV sensor
 
 // other libraries
 #include <string.h> // string comparison
@@ -49,6 +50,7 @@ ESP8266HTTPUpdateServer httpUpdater;
 // Sensor inits, constants, global variables
 String boschStatus = "uninitialized";
 String pmsStatus = "uninitialized";
+String vemlStatus = "uninitialized";
 #define BME280ADDRESS 0x76 // the I2C address of the BME280 used
 #define DHTPIN D4     // what digital pin the DHT sensor is connected to
 #define DHTTYPE DHT22   // Options are DHT11, DHT12, DHT22 (AM2302), DHT21 (AM2301)
@@ -56,10 +58,12 @@ String pmsStatus = "uninitialized";
 #define PMSRX D6 // what Arduino RX digital pin the PMS sensor TX is connected to
 #define PMS_BAUD 9600 //baud rate for SoftwareSerial for PMS7003
 #define PMS_RETRY_LIMIT 5 // Limit the number of connection attempts to the PMS sensor before giving up
+#define VEML_RETRY_LIMIT 5 // Limit the number of connection attempts to the VEML sensor before giving up
 
 
 Adafruit_BMP280 bmp280; // I2C BMP280 init
 Adafruit_BME280 bme280; // I2C BME280 init
+VEML6075 uv; // I2C VEML6075 init on the same Wire bus as the BMx280
 DHT dht(DHTPIN, DHTTYPE); // Initialize DHT sensor.
 SoftwareSerial pmsDigitalSerial(PMSRX, PMSTX); // RX, TX to plug TX, RX of PMS into
 PMS pms(pmsDigitalSerial);
@@ -85,6 +89,11 @@ float pmsPm10Environmental = 0;
 float pmsPm25Environmental = 0;
 float pmsPm100Environmental = 0;
 
+// VEML Data
+float vemlUVA = 0;
+float vemlUVB = 0;
+float vemlUVIndex = 0;
+
 // prints the CSV header/schema of the data output
 String getGlobalDataHeader() {
   return String("dhtHumidityPercent,")
@@ -100,10 +109,13 @@ String getGlobalDataHeader() {
          + String("pmsPm100Standard,")
          + String("pmsPm10Environmental,")
          + String("pmsPm25Environmental,")
-         + String("pmsPm100Environmental");
+         + String("pmsPm100Environmental,")
+         + String("vemlUVA,")
+         + String("vemlUVB,")
+         + String("vemlUVIndex");
 }
 
-// prints the CSV data output of each metric
+// prints the CSV data output of each metric, with defined decimal precision
 String getGlobalDataString() {
   return String(dhtHumidityPercent, 2) + ","
          + String(dhtTemperatureC, 2) + ","
@@ -118,7 +130,10 @@ String getGlobalDataString() {
          + String(pmsPm100Standard, 0) + ","
          + String(pmsPm10Environmental, 0) + ","
          + String(pmsPm25Environmental, 0) + ","
-         + String(pmsPm100Environmental, 0);
+         + String(pmsPm100Environmental, 0) + ","
+         + String(vemlUVA, 2) + ","
+         + String(vemlUVB, 2) + ","
+         + String(vemlUVIndex, 2);
 }
 
 // Logic to handle updating the global sensor data vars from present sensors
@@ -149,8 +164,7 @@ void updateSensorData() {
     boschPressureInHg = boschPressurePa / 3386.38866F; // manual Pascals to inches of Mercury conversion
     Log.trace("Retrieved new BME280 data");
   } else if (boschStatus.equals("uninitialized")) {
-    Log.notice("Could not find a valid BMx280, check wiring, address, sensor ID!");
-
+    Log.trace("Could not find a valid BMx280, check wiring, address, sensor ID!");
   }
 
   // Get PMS Data
@@ -162,6 +176,14 @@ void updateSensorData() {
     pmsPm25Environmental = pmsData.PM_AE_UG_2_5;
     pmsPm100Environmental = pmsData.PM_AE_UG_10_0;
     Log.trace("Retrieved new PMS7003 data");
+  }
+
+  // Get VEML UV data
+  if (vemlStatus.equals("VEML6075")) {
+    vemlUVA = uv.uva();
+    vemlUVB = uv.uvb();
+    vemlUVIndex = uv.index();
+    Log.trace("Retrieved new VEML6075 data");
   }
 }
 
@@ -195,6 +217,21 @@ void setup(void) {
   }
   if (pmsStatus.equals("uninitialized")) {
     Log.notice("Could not find a valid PMS7003, check wiring, SoftSerial!");
+  }
+
+  // Give the VEML sensor a few attempts to establish a connection
+  for (uint8_t i = 1; i <= VEML_RETRY_LIMIT; i++) {
+    if (uv.begin(Wire) == VEML6075_ERROR_SUCCESS) {
+      vemlStatus = "VEML6075";
+      Log.notice("Found VEML6075 on attempt %i!", i);
+      break; // exit the loop early as we've found the sensor
+    } else {
+      Log.notice("VEML6075 not found, %i tries remaining", VEML_RETRY_LIMIT - i);
+    }
+    delay(500);
+  }
+  if (vemlStatus.equals("uninitialized")) {
+    Log.notice("Could not find a valid VEML6075, check wiring, I2C bus!");
   }
 
   scheduler.addTask(dataUpdateTask); // initialize the scheduled data gathering task
