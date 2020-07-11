@@ -88,6 +88,18 @@
 
 
 
+### SGP30 TVOC/eCO2 Air Sensor
+
+* using the I2C Scanner sketch with no modifications (didn't need to change the Wire pin or anything) I see 3 I2C outputs after daisy chaining VCC/GND/SCL/SDA from the UV + BMP into the SGP. I see I2C addresses 0x10, 0x58, 0x76 and I believe 58 and 76 were there before. Good to know. 
+* Going to give the Adafruit SGP30 library a shot since I'm already using Adafruit for BMP280 and BME280. Cool, I get readings with no issues. This is telling me the TVOC is 0ppb (90 when I breathed on it), raw H2 of 12047, raw ethanol of 16560, and eCO2 of around 470ppm. I found a reading website in Hawaii reporting 414ppm so it seems about right.
+* I tried the spark fun library and it reported about the same, 400-410 CO2 ppm and TVOC 0-10ppb, breathing raised  it to 430ppm and 49ppb.
+* WHOA dripping some isopropanol nearby made the values go nuts, TVOC of 60000ppb and CO2 of 57000ppm. As expected, pure alcohol vapor isn't going to play nice with the readings
+* Sparkfun allows for mySensor.initAirQuality and then my sensor.measureAirQuality, pretty easy. 
+* Adafruit allows for sgp.begin and then sgp.IAQmeasure()
+* I had an issue with gibberish printing out to the logs, even with the original code. Not sure what happened but I updated some libraries and restarted Arduino and then it worked fine
+
+
+
 ### Using
 
 * The webpage output in its current state appears as the following
