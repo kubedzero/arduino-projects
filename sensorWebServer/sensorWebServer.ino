@@ -144,8 +144,8 @@ String getGlobalDataString() {
          + String(vemlUVA, 2) + ","
          + String(vemlUVB, 2) + ","
          + String(vemlUVIndex, 2) + ","
-         + String(sgpTVOC, 2) + ","
-         + String(sgpECO2, 2);
+         + String(sgpTVOC, 0) + ","
+         + String(sgpECO2, 0);
 }
 
 // Logic to handle updating the global sensor data vars from present sensors
