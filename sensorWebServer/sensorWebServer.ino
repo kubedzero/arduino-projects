@@ -10,14 +10,14 @@
 #include <Wire.h> // for BMP280 or BME280 via I2C
 #include <Adafruit_Sensor.h> // 1.1.2 Adafruit unified sensor library
 #include <Adafruit_BMP280.h> // 2.0.1 Adafruit extension library for BMP280
-#include <Adafruit_BME280.h> // 2.0.1 Adafruit extension library for BME280
-#include <DHT.h> // 1.3.8 Adafruit DHT Sensor Library for DHT22
+#include <Adafruit_BME280.h> // 2.0.2 Adafruit extension library for BME280
+#include <DHT.h> // 1.3.10 Adafruit DHT Sensor Library for DHT22
 #include <PMS.h> // 1.1.0 Mariusz Kacki (fu-hsi) library for PMS x003 family sensors
-#include <SparkFun_VEML6075_Arduino_Library.h> // 1.0.4 library for VEML6075 UV sensor
+#include <SparkFun_VEML6075_Arduino_Library.h> // 1.1.4 library for VEML6075 UV sensor
 
 // other libraries
 #include <string.h> // string comparison
-#include <TaskScheduler.h> // 3.0.2 library by arkhipenko for periodic data updates
+#include <TaskScheduler.h> // 3.1.6 library by arkhipenko for periodic data updates
 #include <ArduinoLog.h> // 1.0.3 library by thijse for outputting different log levels
 #include <SoftwareSerial.h> // library for assigning pins as Serial ports, for PMS7003
 
@@ -216,7 +216,7 @@ void setup(void) {
     }
   }
   if (pmsStatus.equals("uninitialized")) {
-    Log.notice("Could not find a valid PMS7003, check wiring, SoftSerial!");
+    Log.notice("Could not find a valid PMS7003! Check wiring, SoftSerial");
   }
 
   // Give the VEML sensor a few attempts to establish a connection
