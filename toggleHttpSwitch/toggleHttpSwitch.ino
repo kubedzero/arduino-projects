@@ -42,36 +42,8 @@ void setup() {
   int input1val = digitalRead(INPUT1); // read the value from the first leg
   int input2val = digitalRead(INPUT2); // read the value from the second leg
 
-  WiFiClient client;
+  sendHTTPGET("http://lamp.brad/cm?cmnd=Power%20TOGGLE");
 
-    HTTPClient http;
-
-    Serial.print("[HTTP] begin...\n");
-    if (http.begin(client, "http://10.1.1.47/cm?cmnd=Power%20TOGGLE")) {  // HTTP
-
-
-      Serial.print("[HTTP] GET...\n");
-      // start connection and send HTTP header
-      int httpCode = http.GET();
-
-      // httpCode will be negative on error
-      if (httpCode > 0) {
-        // HTTP header has been send and Server response header has been handled
-        Serial.printf("[HTTP] GET... code: %d\n", httpCode);
-
-        // file found at server
-        if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
-          String payload = http.getString();
-          Serial.println(payload);
-        }
-      } else {
-        Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
-      }
-
-      http.end();
-    } else {
-      Serial.printf("[HTTP} Unable to connect\n");
-    }
 
   // Go to sleep until woken up by a circuit bringing the RST pin LOW
   ESP.deepSleep(0);
@@ -79,6 +51,40 @@ void setup() {
 
 void loop() {
 
+}
+
+
+void sendHTTPGET (char * url) {
+  WiFiClient client;
+
+  HTTPClient http;
+
+  Serial.print("[HTTP] begin...\n");
+  if (http.begin(client, url)) {  // HTTP
+
+
+    Serial.print("[HTTP] GET...\n");
+    // start connection and send HTTP header
+    int httpCode = http.GET();
+
+    // httpCode will be negative on error
+    if (httpCode > 0) {
+      // HTTP header has been send and Server response header has been handled
+      Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+
+      // file found at server
+      if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
+        String payload = http.getString();
+        Serial.println(payload);
+      }
+    } else {
+      Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+    }
+
+    http.end();
+  } else {
+    Serial.printf("[HTTP} Unable to connect\n");
+  }
 }
 
 
