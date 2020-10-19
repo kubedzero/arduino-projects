@@ -1,4 +1,4 @@
-#include <ESP8266WiFi.h> // ESP8266 specific WiFi library
+#include <ESP8266WiFi.h> // 2.7.4 ESP8266 specific WiFi library
 #include <WiFiClient.h> // library supporting WiFi connection
 #include <ESP8266HTTPClient.h> // library to make HTTP GET calls
 #include <ArduinoLog.h> // 1.0.3 library by thijse for outputting different log levels
@@ -10,6 +10,7 @@
 // available levels are _SILENT, _FATAL, _ERROR, _WARNING, _NOTICE, _TRACE, _VERBOSE
 #define LOG_LEVEL LOG_LEVEL_NOTICE
 
+// I/O variables and constants
 #define LEDPIN D4 // built in blue LED on the ESP itself
 #define INPUT1 D1 // one leg of the toggle switch
 #define INPUT2 D2 // the other leg of the toggle switch
@@ -20,7 +21,6 @@ const char* ssid = WIFI_SSID; // from creds file
 const char* password = WIFI_PASSWD; // from creds file
 
 void setup() {
-
   pinMode(INPUT1, INPUT_PULLUP); // use built-in pullup resistor to keep high when floating
   pinMode(INPUT2, INPUT_PULLUP); // use built-in pullup resistor to keep high when floating
   pinMode(LEDPIN, OUTPUT); // used to visually indicate states
@@ -28,120 +28,87 @@ void setup() {
   // Serial, logging, WiFi setup
   Serial.begin(SERIAL_BAUD);
   while (!Serial && !Serial.available()) {}
-  delay(200); //add some delay before we start printing
   Serial.println(); // get off the junk line that prints at 74880 baud
   Log.begin(LOG_LEVEL, &Serial);
   Log.setSuffix(printNewline); // put a newline after each log statement
   Log.notice("Booting Sketch...");
-  WiFiConnect();
-
-  delay(500);
-  // blink on off on off for 1s each to signify bootup
-  //blinkWithDelay(1000);
+  WiFiConnect(); // run the helper that connects to WiFi
 
   int input1val = digitalRead(INPUT1); // read the value from the first leg
   int input2val = digitalRead(INPUT2); // read the value from the second leg
 
-    // Check that the second leg is floating (high due to pull-up) 
-  // and first leg is LOW (grounded)
+  // Check which input is connected (pulled up by default, LOW if connected to GND)
   if (!input1val && input2val) {
-    //blinkWithDelay(250);
-    sendHTTPGET("http://lamp.brad/cm?cmnd=Power%20ON", LAMPRETRYLIMIT);
-    // Input 1 is active, trigger the first state
+    Log.notice("Input 1 (ON) is connected");
+    // Cast as char * to avoid: `warning: deprecated conversion from string constant to 'char*'`
+    sendHTTPGET((char *)"http://lamp.brad/cm?cmnd=Power%20ON", LAMPRETRYLIMIT);
+    //sendHTTPGET((char *)"http://tv.brad/cm?cmnd=Power%20ON", TVRETRYLIMIT);
   } else if (!input2val && input1val) {
-    //blinkWithDelay(500);
-    sendHTTPGET("http://lamp.brad/cm?cmnd=Power%20OFF", LAMPRETRYLIMIT);
-    // Input 2 is active, trigger the second state
+    Log.notice("Input 2 (OFF) is connected");
+    // Cast as char * to avoid: `warning: deprecated conversion from string constant to 'char*'`
+    sendHTTPGET((char *)"http://lamp.brad/cm?cmnd=Power%20OFF", LAMPRETRYLIMIT);
+    //sendHTTPGET((char *)"http://tv.brad/cm?cmnd=Power%20OFF", TVRETRYLIMIT);
   } else {
-    blinkWithDelay(500);
-    // There is some sort of error and both inputs 1 and 2 are HIGH or LOW
+    Log.notice("Neither or both inputs are connected, skipping HTTP calls");
   }
 
-
-  
-
-
-  // Go to sleep until woken up by a circuit bringing the RST pin LOW
+  Log.notice("Actions complete, sleeping until woken up by a circuit bringing the RST pin LOW");
   ESP.deepSleep(0);
 }
 
-void loop() {
-
-}
-
-
-void sendHTTPGET (char * url, int retries) {
-  WiFiClient client; // initialize the client we'll use to talk on the network
-  HTTPClient http; // initialize the HTTP code the WiFi client will use to speak HTTP
-  // set timeout with http.setTimeout(3000);
-
-  
-
-  Serial.print("[HTTP] begin...\n");
-  if (http.begin(client, url)) {  // HTTP
-
-
-    Serial.print("[HTTP] GET...\n");
-    // start connection and send HTTP header
-    int httpCode = http.GET();
-
-    // httpCode will be negative on error
-    if (httpCode > 0) {
-      // HTTP header has been send and Server response header has been handled
-      Serial.printf("[HTTP] GET... code: %d\n", httpCode);
-
-      // file found at server
-      if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
-        String payload = http.getString();
-        Serial.println(payload);
+// Given a URL and a number of attempts to make, perform an HTTP GET call
+void sendHTTPGET (char * url, int attempts) {
+  for (int i = 0; i <= attempts; i++) {
+    Log.notice("Initiating attempt %d of URL %s", i, url);
+    WiFiClient client; // initialize the client we'll use to talk on the network
+    HTTPClient http; // initialize the code the WiFi client will use to speak HTTP
+    http.setTimeout(3000);
+    if (http.begin(client, url)) {  // Establish the HTTP connection
+      int httpCode = http.GET(); // send the GET request
+      // httpCode will be negative on error, positive otherwise
+      if (httpCode > 0) {
+        Log.notice("Server HTTP GET returned with code: %d", httpCode);
+        if (httpCode == HTTP_CODE_OK) {
+          Log.notice(http.getString().c_str()); // print the payload
+          break; // end the for loop early since we succeeded
+        }
+      } else {
+        Log.warning("Server HTTP GET returned error: %s", http.errorToString(httpCode).c_str());
       }
+      http.end(); // close the HTTP client cleanly
     } else {
-      Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+      Log.warning("Server HTTP GET was unable to connect on attempt %d", i);
     }
-
-    http.end();
-  } else {
-    Serial.printf("[HTTP} Unable to connect\n");
   }
+  Log.warning("No attempts remain for the call to %s, moving on", url);
 }
 
 
-// Connect or reconnect to WiFi network
+// Connect or reconnect to WiFi network. LED stays ON for this step
 void WiFiConnect() {
-  if (WiFi.status() != WL_CONNECTED)
-  {
-    digitalWrite(LEDPIN, LOW); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to on
+  if (WiFi.status() != WL_CONNECTED) {
+    digitalWrite(LEDPIN, LOW); // set the LED ON by bringing the pin LOW
     Log.notice("WiFi is not connected. Connecting to %s", ssid);
     WiFi.disconnect();
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
     while (WiFi.status() != WL_CONNECTED) {
-      delay(1000);
+      delay(250);
       Log.notice("waiting...");
     }
-    String ipAddrString = WiFi.localIP().toString(); // convert the IPAddress opject to a String
-    char * ipAddrChar = new char [ipAddrString.length() + 1]; // allocate space for a char array
-    strcpy (ipAddrChar, ipAddrString.c_str()); // populate the char array
-    Log.notice("Connected, IP address is %s", ipAddrChar); // pass the char array to the logger
-    digitalWrite(LEDPIN, HIGH); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
+    // Get the IP as a String, then a Char array, and log it
+    Log.notice("Connected, IP address is %s", WiFi.localIP().toString().c_str()); 
+    digitalWrite(LEDPIN, HIGH); // set the LED OFF by bringing the pin HIGH
   } else {
-    Log.verbose("WiFi is connected, nothing to do");
+    Log.notice("WiFi is already connected, nothing to do");
   }
 }
 
-// helper to add a newline at the end of every log statement
+// Helper to add a newline at the end of every log statement
 void printNewline(Print * _logOutput) {
   _logOutput->print('\n');
 }
 
-
-void blinkWithDelay(int delayMillis) {
-  digitalWrite(LEDPIN, !digitalRead(LEDPIN));
-  delay(delayMillis);
-  digitalWrite(LEDPIN, !digitalRead(LEDPIN));
-  delay(delayMillis);
-  digitalWrite(LEDPIN, !digitalRead(LEDPIN));
-  delay(delayMillis);
-  digitalWrite(LEDPIN, !digitalRead(LEDPIN));
-  delay(delayMillis);
+// We boot up each time something needs to be done, so no looping action is necessary
+void loop() {
 }
