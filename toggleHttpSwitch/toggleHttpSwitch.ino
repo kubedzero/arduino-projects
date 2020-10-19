@@ -23,13 +23,13 @@ void setup() {
 
   pinMode(INPUT1, INPUT_PULLUP); // use built-in pullup resistor to keep high when floating
   pinMode(INPUT2, INPUT_PULLUP); // use built-in pullup resistor to keep high when floating
-  pinMode(LEDPIN, OUTPUT); // used to indicate states
+  pinMode(LEDPIN, OUTPUT); // used to visually indicate states
 
   // Serial, logging, WiFi setup
   Serial.begin(SERIAL_BAUD);
   while (!Serial && !Serial.available()) {}
   delay(200); //add some delay before we start printing
-  Serial.println(); // get off the junk line
+  Serial.println(); // get off the junk line that prints at 74880 baud
   Log.begin(LOG_LEVEL, &Serial);
   Log.setSuffix(printNewline); // put a newline after each log statement
   Log.notice("Booting Sketch...");
@@ -37,12 +37,28 @@ void setup() {
 
   delay(500);
   // blink on off on off for 1s each to signify bootup
-  blinkWithDelay(1000);
+  //blinkWithDelay(1000);
 
   int input1val = digitalRead(INPUT1); // read the value from the first leg
   int input2val = digitalRead(INPUT2); // read the value from the second leg
 
-  sendHTTPGET("http://lamp.brad/cm?cmnd=Power%20TOGGLE");
+    // Check that the second leg is floating (high due to pull-up) 
+  // and first leg is LOW (grounded)
+  if (!input1val && input2val) {
+    //blinkWithDelay(250);
+    sendHTTPGET("http://lamp.brad/cm?cmnd=Power%20ON", LAMPRETRYLIMIT);
+    // Input 1 is active, trigger the first state
+  } else if (!input2val && input1val) {
+    //blinkWithDelay(500);
+    sendHTTPGET("http://lamp.brad/cm?cmnd=Power%20OFF", LAMPRETRYLIMIT);
+    // Input 2 is active, trigger the second state
+  } else {
+    blinkWithDelay(500);
+    // There is some sort of error and both inputs 1 and 2 are HIGH or LOW
+  }
+
+
+  
 
 
   // Go to sleep until woken up by a circuit bringing the RST pin LOW
@@ -54,10 +70,12 @@ void loop() {
 }
 
 
-void sendHTTPGET (char * url) {
-  WiFiClient client;
+void sendHTTPGET (char * url, int retries) {
+  WiFiClient client; // initialize the client we'll use to talk on the network
+  HTTPClient http; // initialize the HTTP code the WiFi client will use to speak HTTP
+  // set timeout with http.setTimeout(3000);
 
-  HTTPClient http;
+  
 
   Serial.print("[HTTP] begin...\n");
   if (http.begin(client, url)) {  // HTTP
