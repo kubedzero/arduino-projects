@@ -41,13 +41,15 @@ void setup() {
   if (!input1val && input2val) {
     Log.notice("Input 1 (ON) is connected");
     // Cast as char * to avoid: `warning: deprecated conversion from string constant to 'char*'`
+    // https://tasmota.github.io/docs/Commands/ Tasmota Command HTTP GET format
     sendHTTPGET((char *)"http://lamp.brad/cm?cmnd=Power%20ON", LAMPRETRYLIMIT);
-    //sendHTTPGET((char *)"http://tv.brad/cm?cmnd=Power%20ON", TVRETRYLIMIT);
+    sendHTTPGET((char *)"http://tv.brad/cm?cmnd=Power%20ON", TVRETRYLIMIT);
   } else if (!input2val && input1val) {
     Log.notice("Input 2 (OFF) is connected");
     // Cast as char * to avoid: `warning: deprecated conversion from string constant to 'char*'`
+    // https://tasmota.github.io/docs/Commands/ Tasmota Command HTTP GET format
     sendHTTPGET((char *)"http://lamp.brad/cm?cmnd=Power%20OFF", LAMPRETRYLIMIT);
-    //sendHTTPGET((char *)"http://tv.brad/cm?cmnd=Power%20OFF", TVRETRYLIMIT);
+    sendHTTPGET((char *)"http://tv.brad/cm?cmnd=Power%20OFF", TVRETRYLIMIT);
   } else {
     Log.notice("Neither or both inputs are connected, skipping HTTP calls");
   }
