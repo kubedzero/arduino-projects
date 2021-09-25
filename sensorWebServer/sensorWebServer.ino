@@ -1,5 +1,5 @@
 // libraries needed for OTA web server and WiFi connect
-#include <ESP8266WiFi.h> // ESP8266 specific WiFi library
+#include <ESP8266WiFi.h> // 3.0.2 ESP8266 specific WiFi library
 #include <WiFiClient.h> // library supporting WiFi connection
 #include <ESP8266WebServer.h> // library for HTTP Server
 #include <ESP8266HTTPUpdateServer.h> // library for update code

@@ -1,7 +1,7 @@
-#include <ESP8266WiFi.h> // 2.7.4 ESP8266 specific WiFi library
+#include <ESP8266WiFi.h> // 3.0.2 ESP8266 specific WiFi library
 #include <WiFiClient.h> // library supporting WiFi connection
-#include <ESP8266HTTPClient.h> // library to make HTTP GET calls
-#include <ArduinoLog.h> // 1.0.3 library by thijse for outputting different log levels
+#include <ESP8266HTTPClient.h> // 3.0.2 ESP8266 specific WiFi library to make HTTP GET calls
+#include <ArduinoLog.h> // 1.1.1 library by thijse for outputting different log levels
 
 #include "myCredentials.h" // used to store WiFi credentials
 
@@ -43,13 +43,13 @@ void setup() {
     // Cast as char * to avoid: `warning: deprecated conversion from string constant to 'char*'`
     // https://tasmota.github.io/docs/Commands/ Tasmota Command HTTP GET format
     sendHTTPGET((char *)"http://lamp.brad/cm?cmnd=Power%20ON", LAMPRETRYLIMIT);
-    sendHTTPGET((char *)"http://tv.brad/cm?cmnd=Power%20ON", TVRETRYLIMIT);
+    // sendHTTPGET((char *)"http://tv.brad/cm?cmnd=Power%20ON", TVRETRYLIMIT);
   } else if (!input2val && input1val) {
     Log.notice("Input 2 (OFF) is connected");
     // Cast as char * to avoid: `warning: deprecated conversion from string constant to 'char*'`
     // https://tasmota.github.io/docs/Commands/ Tasmota Command HTTP GET format
     sendHTTPGET((char *)"http://lamp.brad/cm?cmnd=Power%20OFF", LAMPRETRYLIMIT);
-    sendHTTPGET((char *)"http://tv.brad/cm?cmnd=Power%20OFF", TVRETRYLIMIT);
+    // sendHTTPGET((char *)"http://tv.brad/cm?cmnd=Power%20OFF", TVRETRYLIMIT);
   } else {
     Log.notice("Neither or both inputs are connected, skipping HTTP calls");
   }
@@ -89,7 +89,7 @@ void sendHTTPGET (char * url, int attempts) {
 // Connect or reconnect to WiFi network. LED stays ON for this step
 void WiFiConnect() {
   if (WiFi.status() != WL_CONNECTED) {
-    digitalWrite(LEDPIN, LOW); // set the LED ON by bringing the pin LOW
+    digitalWrite(LEDPIN, LOW); // Set the LED ON by bringing the pin LOW
     Log.notice("WiFi is not connected. Connecting to %s", ssid);
     WiFi.disconnect();
     WiFi.mode(WIFI_STA);
@@ -100,14 +100,14 @@ void WiFiConnect() {
     }
     // Get the IP as a String, then a Char array, and log it
     Log.notice("Connected, IP address is %s", WiFi.localIP().toString().c_str()); 
-    digitalWrite(LEDPIN, HIGH); // set the LED OFF by bringing the pin HIGH
+    digitalWrite(LEDPIN, HIGH); // Set the LED OFF by bringing the pin HIGH
   } else {
     Log.notice("WiFi is already connected, nothing to do");
   }
 }
 
-// Helper to add a newline at the end of every log statement
-void printNewline(Print * _logOutput) {
+// Helper to add a newline at the end of every log statement. Provided by log-advanced example.
+void printNewline(Print * _logOutput, int logLevel) {
   _logOutput->print('\n');
 }
 
