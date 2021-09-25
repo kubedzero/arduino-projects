@@ -23,9 +23,9 @@
 
 #include "Arduino.h"
 
+#include <Adafruit_I2CDevice.h>
+#include <Adafruit_SPIDevice.h>
 #include <Adafruit_Sensor.h>
-#include <SPI.h>
-#include <Wire.h>
 
 /*!
  *  @brief  default I2C address
@@ -225,7 +225,7 @@ public:
                    sensor_filter filter = FILTER_OFF,
                    standby_duration duration = STANDBY_MS_0_5);
 
-  void takeForcedMeasurement();
+  bool takeForcedMeasurement(void);
   float readTemperature(void);
   float readPressure(void);
   float readHumidity(void);
@@ -234,13 +234,16 @@ public:
   float seaLevelForAltitude(float altitude, float pressure);
   uint32_t sensorID(void);
 
+  float getTemperatureCompensation(void);
+  void setTemperatureCompensation(float);
+
   Adafruit_Sensor *getTemperatureSensor(void);
   Adafruit_Sensor *getPressureSensor(void);
   Adafruit_Sensor *getHumiditySensor(void);
 
 protected:
-  TwoWire *_wire; //!< pointer to a TwoWire object
-  SPIClass *_spi; //!< pointer to SPI object
+  Adafruit_I2CDevice *i2c_dev = NULL; ///< Pointer to I2C bus interface
+  Adafruit_SPIDevice *spi_dev = NULL; ///< Pointer to SPI bus interface
 
   Adafruit_BME280_Temp *temp_sensor = NULL;
   //!< Adafruit_Sensor compat temperature sensor component
@@ -253,7 +256,6 @@ protected:
 
   void readCoefficients(void);
   bool isReadingCalibration(void);
-  uint8_t spixfer(uint8_t x);
 
   void write8(byte reg, byte value);
   uint8_t read8(byte reg);
@@ -269,10 +271,8 @@ protected:
                   //!< as this is used for temperature compensation reading
                   //!< humidity and pressure
 
-  int8_t _cs;   //!< for the SPI interface
-  int8_t _mosi; //!< for the SPI interface
-  int8_t _miso; //!< for the SPI interface
-  int8_t _sck;  //!< for the SPI interface
+  int32_t t_fine_adjust = 0; //!< add to compensate temp readings and in turn
+                             //!< to pressure and humidity readings
 
   bme280_calib_data _bme280_calib; //!< here calibration data is stored
 
