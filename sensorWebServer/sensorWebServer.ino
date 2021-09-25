@@ -7,36 +7,36 @@
 #include "myCredentials.h" // used to store WiFi and update credentials
 
 // libraries for sensor reading
-#include <Wire.h> // for BMP280 or BME280 via I2C
-#include <Adafruit_Sensor.h> // 1.1.2 Adafruit unified sensor library
-#include <Adafruit_BMP280.h> // 2.0.1 Adafruit extension library for BMP280
-#include <Adafruit_BME280.h> // 2.0.2 Adafruit extension library for BME280
-#include <DHT.h> // 1.3.10 Adafruit DHT Sensor Library for DHT22
-#include <Adafruit_SGP30.h> // 1.2.1 Adafruit extension library for SGP30
+#include <Adafruit_Sensor.h> // 1.1.4 Adafruit unified sensor library
+#include <Adafruit_I2CDevice.h> // 1.9.1 Adafruit BusIO library
+#include <Adafruit_BMP280.h> // 2.4.2 Adafruit sensor library for BMP280
+#include <Adafruit_BME280.h> // 2.2.1 Adafruit sensor library for BME280
+#include <Adafruit_VEML6075.h> // 2.2.0 Adafruit sensor library for VEML6075 UV
+#include <Adafruit_SGP30.h> // 2.0.0 Adafruit sensor library for SGP30
+#include <DHT.h> // 1.4.2 Adafruit DHT Sensor Library for DHT22
 #include <PMS.h> // 1.1.0 Mariusz Kacki (fu-hsi) library for PMS x003 family sensors
-#include <SparkFun_VEML6075_Arduino_Library.h> // 1.1.4 library for VEML6075 UV sensor
 
 // other libraries
 #include <string.h> // string comparison
-#include <TaskScheduler.h> // 3.1.6 library by arkhipenko for periodic data updates
-#include <ArduinoLog.h> // 1.0.3 library by thijse for outputting different log levels
+#include <TaskScheduler.h> // 3.4.0 library by arkhipenko for periodic sensor updates
+#include <ArduinoLog.h> // 1.1.1 library by thijse for outputting different log levels
 #include <SoftwareSerial.h> // library for assigning pins as Serial ports, for PMS7003
 
 
 
-// Timer setup
+// timer setup
 void updateSensorData();
 Task dataUpdateTask(5000, TASK_FOREVER, &updateSensorData); // run updateSensorData() every 5000ms
 Scheduler scheduler;
 
 
-// Log setup
+// log setup
 #define SERIAL_BAUD 115200 // baud rate for Serial debugging
 // available levels are _SILENT, _FATAL, _ERROR, _WARNING, _NOTICE, _TRACE, _VERBOSE
 #define LOG_LEVEL LOG_LEVEL_NOTICE
 
 
-// Webserver/OTA update variables and constants
+// webserver/OTA update variables and constants
 const char* root_path = "/"; // URL path to get to the root page
 const char* update_path = "/firmware"; // URL path to get to firmware update
 const char* restart_path = "/restart"; // URL path to get to the Restart page
@@ -48,27 +48,27 @@ ESP8266WebServer httpServer(80);
 ESP8266HTTPUpdateServer httpUpdater;
 
 
-// Sensor inits, constants, global variables
+// sensor inits, constants, global variables
 String boschStatus = "uninitialized";
 String pmsStatus = "uninitialized";
 String vemlStatus = "uninitialized";
 String sgpStatus = "uninitialized";
 #define BME280ADDRESS 0x76 // the I2C address of the BME280 used
 #define DHTPIN D4     // what digital pin the DHT sensor is connected to
-#define DHTTYPE DHT22   // Options are DHT11, DHT12, DHT22 (AM2302), DHT21 (AM2301)
+#define DHTTYPE DHT22   // options are DHT11, DHT12, DHT22 (AM2302), DHT21 (AM2301)
 #define PMSTX D7 // (NOT CONNECTED) what Arduino TX digital pin the PMS sensor RX is connected to
 #define PMSRX D6 // what Arduino RX digital pin the PMS sensor TX is connected to
-#define PMS_BAUD 9600 //baud rate for SoftwareSerial for PMS7003
-#define PMS_RETRY_LIMIT 5 // Limit the number of connection attempts to the PMS sensor before giving up
-#define VEML_RETRY_LIMIT 5 // Limit the number of connection attempts to the VEML sensor before giving up
-#define SGP_RETRY_LIMIT 5 // Limit the number of connection attempts to the SGP sensor before giving up
+#define PMS_BAUD 9600 // baud rate for SoftwareSerial for PMS7003
+#define PMS_RETRY_LIMIT 5 // limit the number of connection attempts to the PMS sensor before giving up
+#define VEML_RETRY_LIMIT 5 // limit the number of connection attempts to the VEML sensor before giving up
+#define SGP_RETRY_LIMIT 5 // limit the number of connection attempts to the SGP sensor before giving up
 
 
 Adafruit_BMP280 bmp280; // I2C BMP280 init
 Adafruit_BME280 bme280; // I2C BME280 init
 Adafruit_SGP30 sgp; // I2C SGP30 init
-VEML6075 uv; // I2C VEML6075 init on the same Wire bus as the BMx280
-DHT dht(DHTPIN, DHTTYPE); // Initialize DHT sensor.
+Adafruit_VEML6075 uv = Adafruit_VEML6075(); // I2C VEML6075 init on the same Wire bus as the BMx280
+DHT dht(DHTPIN, DHTTYPE); // initialize DHT sensor.
 SoftwareSerial pmsDigitalSerial(PMSRX, PMSTX); // RX, TX to plug TX, RX of PMS into
 PMS pms(pmsDigitalSerial);
 PMS::DATA pmsData;
@@ -148,10 +148,10 @@ String getGlobalDataString() {
          + String(sgpECO2, 0);
 }
 
-// Logic to handle updating the global sensor data vars from present sensors
+// logic to handle updating the global sensor data vars from present sensors
 void updateSensorData() {
-  // Get DHT Data. Reading temperature or humidity takes about 250 milliseconds!
-  // Sensor readings may also be up to 2 seconds 'old' (it is a very slow sensor)
+  // get DHT Data. Reading temperature or humidity takes about 250 milliseconds!
+  // sensor readings may also be up to 2 seconds 'old' (it is a very slow sensor)
   dhtHumidityPercent = dht.readHumidity();
   dhtTemperatureC = dht.readTemperature();
   dhtTemperatureF = dht.readTemperature(true);
@@ -159,7 +159,7 @@ void updateSensorData() {
     Log.trace("Retrieved new DHT data");
   }
 
-  // Get Bosch Data
+  // get Bosch Data
   if (boschStatus.equals("BMP280")) {
     boschHumidityPercent = 1.0F / 0.0F; // intentionally set this to inf to signify no reading
     boschTemperatureC = bmp280.readTemperature();
@@ -179,7 +179,7 @@ void updateSensorData() {
     Log.trace("Could not find a valid BMx280, check wiring, address, sensor ID!");
   }
 
-  // Get PMS Data
+  // get PMS Data
   if (pmsStatus.equals("PMS7003") && pms.readUntil(pmsData)) { // readUntil has 1000ms default timeout to get data
     pmsPm10Standard = pmsData.PM_SP_UG_1_0;
     pmsPm25Standard = pmsData.PM_SP_UG_2_5;
@@ -190,15 +190,15 @@ void updateSensorData() {
     Log.trace("Retrieved new PMS7003 data");
   }
 
-  // Get VEML UV data
+  // get VEML UV data
   if (vemlStatus.equals("VEML6075")) {
-    vemlUVA = uv.uva();
-    vemlUVB = uv.uvb();
-    vemlUVIndex = uv.index();
+    vemlUVA = uv.readUVA();
+    vemlUVB = uv.readUVB();
+    vemlUVIndex = uv.readUVI();
     Log.trace("Retrieved new VEML6075 data");
   }
 
-  // Get SGP TVOC and eCO2 data
+  // get SGP TVOC and eCO2 data
   if (sgpStatus.equals("SGP30")) {
     if (sgp.IAQmeasure()) {
       sgpTVOC = sgp.TVOC;
@@ -210,13 +210,13 @@ void updateSensorData() {
   }
 }
 
-// One-time Arduino setup method
+// one-time Arduino setup method
 void setup(void) {
   pinMode(LED_BUILTIN, OUTPUT); // Blue(GeekCreit) or Red(NodeMCU 0.9) LED initialized LOW (LED ON)
-  // Serial, logging, WiFi setup
+  // serial, logging, WiFi setup
   Serial.begin(SERIAL_BAUD);
   while (!Serial && !Serial.available()) {}
-  delay(200); //add some delay before we start printing
+  delay(200); // add some delay before we start printing
   Serial.println(); // get off the junk line
   Log.begin(LOG_LEVEL, &Serial);
   Log.setSuffix(printNewline); // put a newline after each log statement
@@ -224,10 +224,10 @@ void setup(void) {
   WiFiConnect();
 
   setupBosch(); // run the setup method to initialize one Bosch sensor
-  dht.begin(); // initialize the DHT sensor
-  pmsDigitalSerial.begin(PMS_BAUD); // Start the SoftSerial for the PMS sensor
+  dht.begin(); // initialize the DHT sensor. No conditional, as it returns void
+  pmsDigitalSerial.begin(PMS_BAUD); // start the SoftSerial for the PMS sensor
 
-  // Give the PMS sensor a few attempts to establish a connection
+  // Ggive the PMS sensor a few attempts to establish a connection
   for (uint8_t i = 1; i <= PMS_RETRY_LIMIT; i++) {
     delay(500);
     if (pmsDigitalSerial && pmsDigitalSerial.available()) {
@@ -242,9 +242,9 @@ void setup(void) {
     Log.notice("Could not find a valid PMS7003! Check wiring, SoftSerial");
   }
 
-  // Give the VEML sensor a few attempts to establish a connection
+  // give the VEML sensor a few attempts to establish a connection
   for (uint8_t i = 1; i <= VEML_RETRY_LIMIT; i++) {
-    if (uv.begin(Wire) == VEML6075_ERROR_SUCCESS) {
+    if (uv.begin()) {
       vemlStatus = "VEML6075";
       Log.notice("Found VEML6075 on attempt %i!", i);
       break; // exit the loop early as we've found the sensor
@@ -257,11 +257,13 @@ void setup(void) {
     Log.notice("Could not find a valid VEML6075, check wiring, I2C bus!");
   }
 
-  // Give the SGP sensor a few attempts to establish a connection
+  // give the SGP sensor a few attempts to establish a connection
   for (uint8_t i = 1; i <= SGP_RETRY_LIMIT; i++) {
     if (sgp.begin(&Wire, true)) {
       sgpStatus = "SGP30";
       Log.notice("Found SGP30 on attempt %i!", i);
+      // print serial using hex to ascii wildcard, example had Serial.print(sgp.serialnumber[0], HEX);
+      Log.notice("SGP30 serial is #%x%x%x", sgp.serialnumber[0], sgp.serialnumber[1], sgp.serialnumber[2]);
       break; // exit the loop early as we've found the sensor
     } else {
       Log.notice("SGP30 not found, %i tries remaining", SGP_RETRY_LIMIT - i);
@@ -276,20 +278,20 @@ void setup(void) {
   dataUpdateTask.enable(); // enable the data gathering task
 
   httpUpdater.setup(&httpServer, update_path, update_username, update_password); // OTA server setup
-  httpServer.onNotFound(handleNotFound); // When a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
+  httpServer.onNotFound(handleNotFound); // when a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
   httpServer.on(root_path, handleRoot); // take care of the page we populate with our information
-  httpServer.on(restart_path, handleRestart); // Calling this page will trigger a restart/reboot of the ESP
+  httpServer.on(restart_path, handleRestart); // calling this page will trigger a restart/reboot of the ESP
   httpServer.begin();
 }
 
-// Looping Arduino method
+// looping Arduino method
 void loop(void) {
-  WiFiConnect(); // Make sure the WiFi maintains connection. Library does this for us but this has LED notification
+  WiFiConnect(); // make sure the WiFi maintains connection. Library does this for us but this has LED notification
   httpServer.handleClient(); // if the webserver is accessed, this handles the request
   scheduler.execute(); // keep the timer running for scheduled data updates
 }
 
-// Connect or reconnect to WiFi network
+// connect or reconnect to WiFi network
 void WiFiConnect() {
   if (WiFi.status() != WL_CONNECTED)
   {
@@ -315,7 +317,7 @@ void WiFiConnect() {
 // method to connect and initialize whichever Bosch sensor is connected
 void setupBosch() {
   unsigned boschBeginReturn;
-  // Try BME280 setup
+  // try BME280 setup
   boschBeginReturn = bme280.begin(BME280ADDRESS, &Wire);
   Log.trace("BME reports the wire sensorID as: 0x%l", bme280.sensorID());
   Log.trace("ID of 0xFF/255 could be a bad address, a BMP 180 or BMP 085");
@@ -336,8 +338,8 @@ void setupBosch() {
     return; // exit early as we've found a sensor
   }
 
-  // Try BMP280 setup
-  boschBeginReturn = bmp280.begin(0x76, 0x58); //BMP280 has I2C address 0x76 and chipID of 0x58
+  // try BMP280 setup
+  boschBeginReturn = bmp280.begin(0x76, 0x58); // BMP280 has I2C address 0x76 and chipID of 0x58
   if (boschBeginReturn) {
     Log.notice("BMP280 found!");
     boschStatus = "BMP280";
@@ -352,30 +354,30 @@ void setupBosch() {
 // LED activates when this is hit. Fetches latest data values and serves them with a header
 void handleRoot() {
   digitalWrite(LED_BUILTIN, LOW); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to on
-  Log.notice("Serving root webpage at %l milliseconds", millis()); //print out milliseconds since program launch, resets every 50d
-  httpServer.send(200, "text/plain", getGlobalDataHeader() + String("\n") + getGlobalDataString());   // Send HTTP status 200 (Ok) and send some text to the browser/client
+  Log.notice("Serving root webpage at %l milliseconds", millis()); // print out milliseconds since program launch, resets every 50d
+  httpServer.send(200, "text/plain", getGlobalDataHeader() + String("\n") + getGlobalDataString());   // send HTTP status 200 (Ok) and send some text to the browser/client
   digitalWrite(LED_BUILTIN, HIGH); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
 
 }
 // LED activates when this is hit. Sends a page with a button that can be used to reboot
 void handleRestart() {
   digitalWrite(LED_BUILTIN, LOW); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to on
-  Log.notice("Serving restart webpage at %l milliseconds", millis()); //print out milliseconds since program launch, resets every 50d
-  httpServer.send(200, "text/plain", "A restart/reboot of the ESP is being triggered");   // Send HTTP status 200 (Ok) and send some text to the browser/client
-  delay(250); // Give the HttpServer some time to send the response before restarting
-  ESP.restart(); // Reboot the ESP
+  Log.notice("Serving restart webpage at %l milliseconds", millis()); // print out milliseconds since program launch, resets every 50d
+  httpServer.send(200, "text/plain", "A restart/reboot of the ESP is being triggered");   // send HTTP status 200 (Ok) and send some text to the browser/client
+  delay(250); // give the HttpServer some time to send the response before restarting
+  ESP.restart(); // reboot the ESP
   digitalWrite(LED_BUILTIN, HIGH); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
 
 }
 // LED activates when this is hit. Serves a 404 to the caller
 void handleNotFound() {
   digitalWrite(LED_BUILTIN, LOW); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to on
-  Log.notice("Serving 404 not found webpage at %l milliseconds", millis()); //print out milliseconds since program launch, resets every 50d
-  httpServer.send(404, "text/plain", "404: Not found"); // Send HTTP status 404 (Not Found) when there's no handler for the URI in the request
+  Log.notice("Serving 404 not found webpage at %l milliseconds", millis()); // print out milliseconds since program launch, resets every 50d
+  httpServer.send(404, "text/plain", "404: Not found"); // send HTTP status 404 (Not Found) when there's no handler for the URI in the request
   digitalWrite(LED_BUILTIN, HIGH); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
 }
 
-// helper to add a newline at the end of every log statement
-void printNewline(Print * _logOutput) {
+// helper to add a newline at the end of every log statement. Provided by log-advanced example.
+void printNewline(Print * _logOutput, int logLevel) {
   _logOutput->print('\n');
 }
