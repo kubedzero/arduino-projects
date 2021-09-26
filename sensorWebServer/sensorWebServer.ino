@@ -77,6 +77,7 @@ PMS::DATA pmsData;
 float dhtHumidityPercent = 0;
 float dhtTemperatureC = 0;
 float dhtTemperatureF = 0;
+float dhtDewPoint = 0;
 
 // Bosch Data
 float boschHumidityPercent = 0;
@@ -84,6 +85,7 @@ float boschTemperatureC = 0;
 float boschTemperatureF = 0;
 float boschPressurePa = 0;
 float boschPressureInHg = 0;
+float boschDewPoint = 0;
 
 // PMS Data
 float pmsPm10Standard = 0;
@@ -122,7 +124,9 @@ String getGlobalDataHeader() {
          + String("vemlUVB,")
          + String("vemlUVIndex,")
          + String("sgpTVOC,")
-         + String("sgpECO2");
+         + String("sgpECO2,")
+         + String("dhtDewPoint,")
+         + String("boschDewPoint");
 }
 
 // prints the CSV data output of each metric, with defined decimal precision
@@ -145,7 +149,9 @@ String getGlobalDataString() {
          + String(vemlUVB, 2) + ","
          + String(vemlUVIndex, 2) + ","
          + String(sgpTVOC, 0) + ","
-         + String(sgpECO2, 0);
+         + String(sgpECO2, 0) + ","
+         + String(dhtDewPoint, 1) + ","
+         + String(boschDewPoint, 1);
 }
 
 // logic to handle updating the global sensor data vars from present sensors
@@ -156,6 +162,7 @@ void updateSensorData() {
   dhtTemperatureC = dht.readTemperature();
   dhtTemperatureF = dht.readTemperature(true);
   if (!isnan(dhtHumidityPercent) || !isnan(dhtTemperatureC) || !isnan(dhtTemperatureF)) {
+    dhtDewPoint = dewPoint(dhtTemperatureC, dhtHumidityPercent);
     Log.trace("Retrieved new DHT data");
   }
 
@@ -166,6 +173,7 @@ void updateSensorData() {
     boschTemperatureF = boschTemperatureC * (9.0F / 5.0F) + 32.0F; // manual *C to *F conversion
     boschPressurePa = bmp280.readPressure();
     boschPressureInHg = boschPressurePa / 3386.38866F; // manual Pascals to inches of Mercury conversion
+    boschDewPoint = dewPoint(boschTemperatureC, boschHumidityPercent);
     Log.trace("Retrieved new BMP280 data");
 
   } else if (boschStatus.equals("BME280")) {
@@ -174,6 +182,7 @@ void updateSensorData() {
     boschTemperatureF = boschTemperatureC * (9.0F / 5.0F) + 32.0F;
     boschPressurePa = bme280.readPressure();
     boschPressureInHg = boschPressurePa / 3386.38866F; // manual Pascals to inches of Mercury conversion
+    boschDewPoint = dewPoint(boschTemperatureC, boschHumidityPercent);
     Log.trace("Retrieved new BME280 data");
   } else if (boschStatus.equals("uninitialized")) {
     Log.trace("Could not find a valid BMx280, check wiring, address, sensor ID!");
@@ -349,6 +358,31 @@ void setupBosch() {
                        Adafruit_BMP280::FILTER_X16, // Filtering
                        Adafruit_BMP280::STANDBY_MS_500); // Standby time
   }
+}
+
+// convert humidity and temperature in C into dew point in F
+// John Main added dewpoint code from : http://playground.arduino.cc/main/DHT11Lib
+// Also added DegC output for Heat Index.
+// dewPoint function NOAA
+// reference (1) : http://wahiduddin.net/calc/density_algorithms.htm
+// reference (2) : http://www.colorado.edu/geography/weather_station/Geog_site/about.htm
+//
+float dewPoint(float celsius, float humidity)
+{
+  // (1) Saturation Vapor Pressure = ESGG(T)
+  double RATIO = 373.15 / (273.15 + double(celsius));
+  double RHS = -7.90298 * (RATIO - 1);
+  RHS += 5.02808 * log10(RATIO);
+  RHS += -1.3816e-7 * (pow(10, (11.344 * (1 - 1 / RATIO ))) - 1) ;
+  RHS += 8.1328e-3 * (pow(10, (-3.49149 * (RATIO - 1))) - 1) ;
+  RHS += log10(1013.246);
+
+  // factor -3 is to adjust units - Vapor Pressure SVP * humidity
+  double VP = pow(10, RHS - 3) * double(humidity);
+
+  // (2) DEWPOINT = F(Vapor Pressure)
+  double T = log(VP / 0.61078); // temp var
+  return float(((241.88 * T) / (17.558 - T) * 9 / 5) + 32);
 }
 
 // LED activates when this is hit. Fetches latest data values and serves them with a header
