@@ -1,12 +1,11 @@
 // libraries needed for OTA web server and WiFi connect
-#include <ESP8266WiFi.h> // 3.0.2 ESP8266 specific WiFi library
+#include <WiFi.h> // 3.0.2 ESP8266 specific WiFi library
 #include <WiFiClient.h> // library supporting WiFi connection
-#include <ESP8266WebServer.h> // library for HTTP Server
-#include <ESP8266HTTPUpdateServer.h> // library for update code
+#include <WebServer.h> // library for HTTP Server
 
 #include "myCredentials.h" // used to store WiFi and update credentials
 
-// libraries for sensor reading
+// libraries for sensor reading 
 #include <Adafruit_Sensor.h> // 1.1.4 Adafruit unified sensor library
 #include <Adafruit_I2CDevice.h> // 1.9.3 Adafruit BusIO library
 #include <Adafruit_BMP280.h> // 2.4.2 Adafruit sensor library for BMP280
@@ -33,7 +32,7 @@ Scheduler scheduler;
 // log setup
 #define SERIAL_BAUD 115200 // baud rate for Serial debugging
 // available levels are _SILENT, _FATAL, _ERROR, _WARNING, _NOTICE, _TRACE, _VERBOSE
-#define LOG_LEVEL LOG_LEVEL_NOTICE
+#define LOG_LEVEL LOG_LEVEL_TRACE
 
 
 // webserver/OTA update variables and constants
@@ -44,8 +43,7 @@ const char* update_username = WEB_UPDATE_USER; // from creds file
 const char* update_password = WEB_UPDATE_PASS; // from creds file
 const char* ssid = WIFI_SSID; // from creds file
 const char* password = WIFI_PASSWD; // from creds file
-ESP8266WebServer httpServer(80);
-ESP8266HTTPUpdateServer httpUpdater;
+WebServer httpServer(80);
 
 
 // sensor inits, constants, global variables
@@ -54,10 +52,10 @@ String pmsStatus = "uninitialized";
 String vemlStatus = "uninitialized";
 String sgpStatus = "uninitialized";
 #define BME280ADDRESS 0x76 // the I2C address of the BME280 used
-#define DHTPIN D4     // what digital pin the DHT sensor is connected to
+#define DHTPIN 18     // what digital pin the DHT sensor is connected to
 #define DHTTYPE DHT22   // options are DHT11, DHT12, DHT22 (AM2302), DHT21 (AM2301)
-#define PMSTX D7 // (NOT CONNECTED) what Arduino TX digital pin the PMS sensor RX is connected to
-#define PMSRX D6 // what Arduino RX digital pin the PMS sensor TX is connected to
+#define PMSTX 17 // (NOT CONNECTED) what Arduino TX digital pin the PMS sensor RX is connected to
+#define PMSRX 16 // what Arduino RX digital pin the PMS sensor TX is connected to
 #define PMS_BAUD 9600 // baud rate for SoftwareSerial for PMS7003
 #define SENSOR_RETRY_LIMIT 5 // limit the number of connection attempts to any sensor before giving up
 #define NO_DATA_INIT_VALUE -16384 // data field initialization value, which should never appear in real readings
@@ -65,10 +63,10 @@ String sgpStatus = "uninitialized";
 
 Adafruit_BMP280 bmp280; // I2C BMP280 init
 Adafruit_BME280 bme280; // I2C BME280 init
-Adafruit_SGP30 sgp; // I2C SGP30 init on the same Wire bus as the BMx280
+Adafruit_SGP30 sgp; // I2C SGP30 init
 Adafruit_VEML6075 uv = Adafruit_VEML6075(); // I2C VEML6075 init on the same Wire bus as the BMx280
 DHT dht(DHTPIN, DHTTYPE); // initialize DHT sensor.
-SoftwareSerial pmsDigitalSerial(PMSRX, PMSTX); // [RX, TX] to plug [TX, RX] of PMS into
+SoftwareSerial pmsDigitalSerial(PMSRX, PMSTX, false); // [RX, TX] to plug [TX, RX] of PMS into
 PMS pms(pmsDigitalSerial); // initialize PMS sensor on specified SoftwareSerial pins.
 PMS::DATA pmsData;
 
@@ -214,7 +212,7 @@ void setup(void) {
   scheduler.addTask(dataUpdateTask); // initialize the scheduled data gathering task
   dataUpdateTask.enable(); // enable the data gathering task
 
-  httpUpdater.setup(&httpServer, update_path, update_username, update_password); // OTA server setup
+  //httpUpdater.setup(&httpServer, update_path, update_username, update_password); // OTA server setup
   httpServer.onNotFound(handleNotFound); // when a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
   httpServer.on(root_path, handleRoot); // take care of the page we populate with our information
   httpServer.on(restart_path, handleRestart); // calling this page will trigger a restart/reboot of the ESP
