@@ -1,8 +1,8 @@
 // libraries needed for OTA web server and WiFi connect
 #include <ESP8266WiFi.h> // 3.0.2 ESP8266 specific WiFi library
 #include <WiFiClient.h> // library supporting WiFi connection
-#include <ESP8266WebServer.h> // library for HTTP Server
-#include <ESP8266HTTPUpdateServer.h> // library for update code
+#include <ESP8266WebServer.h> // ESP8266 specific library for HTTP Server
+#include <ESP8266HTTPUpdateServer.h> // ESP8266 specific library for update code
 
 #include "myCredentials.h" // used to store WiFi and update credentials
 
@@ -54,7 +54,9 @@ String pmsStatus = "uninitialized";
 String vemlStatus = "uninitialized";
 String sgpStatus = "uninitialized";
 #define BME280ADDRESS 0x76 // the I2C address of the BME280 used
-#define DHTPIN D4     // what digital pin the DHT sensor is connected to
+#define I2CPIN_SDA D2 // the default I2C data pin on an ESP8266
+#define I2CPIN_SCL D1 // the default I2C clock pin on an ESP8266
+#define DHTPIN D4     // the digital pin the DHT sensor is connected to
 #define DHTTYPE DHT22   // options are DHT11, DHT12, DHT22 (AM2302), DHT21 (AM2301)
 #define PMSTX D7 // (NOT CONNECTED) what Arduino TX digital pin the PMS sensor RX is connected to
 #define PMSRX D6 // what Arduino RX digital pin the PMS sensor TX is connected to
@@ -65,10 +67,10 @@ String sgpStatus = "uninitialized";
 
 Adafruit_BMP280 bmp280; // I2C BMP280 init
 Adafruit_BME280 bme280; // I2C BME280 init
-Adafruit_SGP30 sgp; // I2C SGP30 init on the same Wire bus as the BMx280
+Adafruit_SGP30 sgp; // I2C SGP30 init
 Adafruit_VEML6075 uv = Adafruit_VEML6075(); // I2C VEML6075 init on the same Wire bus as the BMx280
 DHT dht(DHTPIN, DHTTYPE); // initialize DHT sensor.
-SoftwareSerial pmsDigitalSerial(PMSRX, PMSTX); // [RX, TX] to plug [TX, RX] of PMS into
+SoftwareSerial pmsDigitalSerial(PMSRX, PMSTX, false); // [RX, TX] to plug [TX, RX] of PMS into
 PMS pms(pmsDigitalSerial); // initialize PMS sensor on specified SoftwareSerial pins.
 PMS::DATA pmsData;
 

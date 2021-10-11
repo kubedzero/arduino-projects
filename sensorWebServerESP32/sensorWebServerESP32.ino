@@ -5,7 +5,7 @@
 
 #include "myCredentials.h" // used to store WiFi and update credentials
 
-// libraries for sensor reading 
+// libraries for sensor reading
 #include <Adafruit_Sensor.h> // 1.1.4 Adafruit unified sensor library
 #include <Adafruit_I2CDevice.h> // 1.9.3 Adafruit BusIO library
 #include <Adafruit_BMP280.h> // 2.4.2 Adafruit sensor library for BMP280
@@ -32,7 +32,7 @@ Scheduler scheduler;
 // log setup
 #define SERIAL_BAUD 115200 // baud rate for Serial debugging
 // available levels are _SILENT, _FATAL, _ERROR, _WARNING, _NOTICE, _TRACE, _VERBOSE
-#define LOG_LEVEL LOG_LEVEL_TRACE
+#define LOG_LEVEL LOG_LEVEL_NOTICE
 
 
 // webserver/OTA update variables and constants
@@ -52,7 +52,9 @@ String pmsStatus = "uninitialized";
 String vemlStatus = "uninitialized";
 String sgpStatus = "uninitialized";
 #define BME280ADDRESS 0x76 // the I2C address of the BME280 used
-#define DHTPIN 18     // what digital pin the DHT sensor is connected to
+#define I2CPIN_SDA D2 // the default I2C data pin on an ESP8266
+#define I2CPIN_SCL D1// the default I2C clock pin on an ESP8266
+#define DHTPIN 18     // the digital pin the DHT sensor is connected to
 #define DHTTYPE DHT22   // options are DHT11, DHT12, DHT22 (AM2302), DHT21 (AM2301)
 #define PMSTX 17 // (NOT CONNECTED) what Arduino TX digital pin the PMS sensor RX is connected to
 #define PMSRX 16 // what Arduino RX digital pin the PMS sensor TX is connected to
