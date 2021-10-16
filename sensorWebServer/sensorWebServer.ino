@@ -144,15 +144,17 @@ String getGlobalDataString() {
 void updateSensorData() {
   // get DHT Data. Reading temperature or humidity takes about 250 milliseconds!
   // sensor readings may also be up to 2 seconds 'old' (it is a very slow sensor)
-  dhtHumidityPercent = dht.readHumidity();
-  dhtTemperatureC = dht.readTemperature();
-  if (!isnan(dhtHumidityPercent) || !isnan(dhtTemperatureC)) {
+  // If DHT is not connected, the return value will be `nan`
+  float tempDhtHumidityPercent = dht.readHumidity();
+  float tempDhtTemperatureC = dht.readTemperature();
+  if (!isnan(tempDhtHumidityPercent) || !isnan(tempDhtTemperatureC)) {
+    dhtHumidityPercent = tempDhtHumidityPercent;
+    dhtTemperatureC = tempDhtTemperatureC;
     Log.trace("Retrieved new DHT data");
   }
 
   // get Bosch Data
   if (boschStatus.equals("BMP280")) {
-    boschHumidityPercent = 1.0F / 0.0F; // intentionally set this to inf to signify no reading
     boschTemperatureC = bmp280.readTemperature();
     boschPressurePa = bmp280.readPressure();
     Log.trace("Retrieved new BMP280 data");
@@ -309,7 +311,6 @@ void setupPMS() {
   if (pmsStatus.equals("uninitialized")) {
     Log.notice("Could not find a valid PMS7003! Check wiring, SoftSerial!");
   }
-
 }
 
 // method to connect and initialize a VEML6075 sensor
@@ -328,7 +329,6 @@ void setupVEML() {
   if (vemlStatus.equals("uninitialized")) {
     Log.notice("Could not find a valid VEML6075, check wiring, I2C bus!");
   }
-
 }
 
 // method to connect and initialize an SGP30 sensor
@@ -349,7 +349,6 @@ void setupSGP() {
   if (sgpStatus.equals("uninitialized")) {
     Log.notice("Could not find a valid SGP30, check wiring, I2C bus!");
   }
-
 }
 
 // LED activates when this is hit. Fetches latest data values and serves them as two lines of CSV: schema line and data line
