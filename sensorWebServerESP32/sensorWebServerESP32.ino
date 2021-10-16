@@ -19,7 +19,7 @@
 #include <string.h> // string comparison
 #include <TaskScheduler.h> // 3.4.0 library by arkhipenko for periodic sensor updates
 #include <ArduinoLog.h> // 1.1.1 library by thijse for outputting different log levels
-#include <SoftwareSerial.h> // library for assigning pins as Serial ports, for PMS7003
+#include <SoftwareSerial.h> // 6.13.2 library for assigning pins as Serial ports, for PMS7003
 
 
 
@@ -142,15 +142,16 @@ String getGlobalDataString() {
 void updateSensorData() {
   // get DHT Data. Reading temperature or humidity takes about 250 milliseconds!
   // sensor readings may also be up to 2 seconds 'old' (it is a very slow sensor)
-  dhtHumidityPercent = dht.readHumidity();
-  dhtTemperatureC = dht.readTemperature();
-  if (!isnan(dhtHumidityPercent) || !isnan(dhtTemperatureC)) {
-    Log.trace("Retrieved new DHT data");
+  // If DHT is not connected, the return value will be `nan`
+  float tempDhtHumidityPercent = dht.readHumidity();
+  float tempDhtTemperatureC = dht.readTemperature();
+  if (!isnan(tempDhtHumidityPercent) || !isnan(tempDhtTemperatureC)) {
+    dhtHumidityPercent = tempDhtHumidityPercent;
+    dhtTemperatureC = tempDhtTemperatureC;
   }
 
   // get Bosch Data
   if (boschStatus.equals("BMP280")) {
-    boschHumidityPercent = 1.0F / 0.0F; // intentionally set this to inf to signify no reading
     boschTemperatureC = bmp280.readTemperature();
     boschPressurePa = bmp280.readPressure();
     Log.trace("Retrieved new BMP280 data");
