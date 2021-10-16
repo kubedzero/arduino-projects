@@ -2,6 +2,7 @@
 #include <WiFi.h> // 3.0.2 ESP8266 specific WiFi library
 #include <WiFiClient.h> // library supporting WiFi connection
 #include <WebServer.h> // library for HTTP Server
+#include <HTTPUpdateServer.h> // library for OTA updates
 
 #include "myCredentials.h" // used to store WiFi and update credentials
 
@@ -44,6 +45,7 @@ const char* update_password = WEB_UPDATE_PASS; // from creds file
 const char* ssid = WIFI_SSID; // from creds file
 const char* password = WIFI_PASSWD; // from creds file
 WebServer httpServer(80);
+HTTPUpdateServer httpUpdater;
 
 
 // sensor inits, constants, global variables
@@ -215,7 +217,7 @@ void setup(void) {
   scheduler.addTask(dataUpdateTask); // initialize the scheduled data gathering task
   dataUpdateTask.enable(); // enable the data gathering task
 
-  //httpUpdater.setup(&httpServer, update_path, update_username, update_password); // OTA server setup
+  httpUpdater.setup(&httpServer, update_path, update_username, update_password); // OTA server setup
   httpServer.onNotFound(handleNotFound); // when a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
   httpServer.on(root_path, handleRoot); // take care of the page we populate with our information
   httpServer.on(restart_path, handleRestart); // calling this page will trigger a restart/reboot of the ESP
