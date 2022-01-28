@@ -8,17 +8,17 @@
 
 // libraries for sensor reading
 #include <Adafruit_Sensor.h> // 1.1.4 Adafruit unified sensor library
-#include <Adafruit_I2CDevice.h> // 1.9.3 Adafruit BusIO library
-#include <Adafruit_BMP280.h> // 2.4.2 Adafruit sensor library for BMP280
-#include <Adafruit_BME280.h> // 2.2.1 Adafruit sensor library for BME280
+#include <Adafruit_I2CDevice.h> // 1.10.3 Adafruit BusIO library
+#include <Adafruit_BMP280.h> // 2.6.1 Adafruit sensor library for BMP280
+#include <Adafruit_BME280.h> // 2.2.2 Adafruit sensor library for BME280
 #include <Adafruit_VEML6075.h> // 2.2.0 Adafruit sensor library for VEML6075 UV
 #include <Adafruit_SGP30.h> // 2.0.0 Adafruit sensor library for SGP30
-#include <DHT.h> // 1.4.2 Adafruit DHT Sensor Library for DHT22
+#include <DHT.h> // 1.4.3 Adafruit DHT Sensor Library for DHT22
 #include <PMS.h> // 1.1.0 Mariusz Kacki (fu-hsi) library for PMS x003 family sensors
 
 // other libraries
 #include <string.h> // string comparison
-#include <TaskScheduler.h> // 3.4.0 library by arkhipenko for periodic sensor updates
+#include <TaskScheduler.h> // 3.6.0 library by arkhipenko for periodic sensor updates
 #include <ArduinoLog.h> // 1.1.1 library by thijse for outputting different log levels
 #include <SoftwareSerial.h> // library for assigning pins as Serial ports, for PMS7003
 
@@ -33,7 +33,7 @@ Scheduler scheduler;
 // log setup
 #define SERIAL_BAUD 115200 // baud rate for Serial debugging
 // available levels are _SILENT, _FATAL, _ERROR, _WARNING, _NOTICE, _TRACE, _VERBOSE
-#define LOG_LEVEL LOG_LEVEL_NOTICE
+#define LOG_LEVEL LOG_LEVEL_TRACE
 
 
 // webserver/OTA update variables and constants
@@ -56,7 +56,7 @@ String sgpStatus = "uninitialized";
 #define BME280ADDRESS 0x76 // the I2C address of the BME280 used
 #define I2CPIN_SDA D2 // the default I2C data pin on an ESP8266
 #define I2CPIN_SCL D1 // the default I2C clock pin on an ESP8266
-#define DHTPIN D4     // the digital pin the DHT sensor is connected to
+#define DHTPIN D5     // the digital pin for the DHT22. Avoid ESP8266 D4, the ESP_LED pin
 #define DHTTYPE DHT22   // options are DHT11, DHT12, DHT22 (AM2302), DHT21 (AM2301)
 #define PMSTX D7 // (NOT CONNECTED) what Arduino TX digital pin the PMS sensor RX is connected to
 #define PMSRX D6 // what Arduino RX digital pin the PMS sensor TX is connected to

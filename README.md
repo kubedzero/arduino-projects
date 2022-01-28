@@ -97,6 +97,13 @@
 * Sparkfun allows for mySensor.initAirQuality and then my sensor.measureAirQuality, pretty easy. 
 * Adafruit allows for sgp.begin and then sgp.IAQmeasure()
 * I had an issue with gibberish printing out to the logs, even with the original code. Not sure what happened but I updated some libraries and restarted Arduino and then it worked fine
+* 2021Q3 Update: I got a new SGP30 from Adafruit that uses the Stemma QT JST sockets: https://learn.adafruit.com/introducing-adafruit-stemma-qt/technical-specs 
+  * Black is ground
+  * Red is VCC
+  * Blue is SDA
+  * Yellow is SCL
+* 2022Q1 Update: I wanted the ESP-12 built-in LED to stop blinking every 5 seconds. I didn't have that blinking functionality programmed in, so I assumed it was coming from something else. Sure enough, Pin D4/GPIO2 is where I have the DHT22 connected, and according to https://lowvoltage.github.io/2017/07/09/Onboard-LEDs-NodeMCU-Got-Two that's the same pin used for the LED. I think what was happening was that the DHT was being queried for data, and that activity on pin D4 also triggered the LED. By changing the sketch and wiring to use pin D5 instead, I was able to avoid triggering the LED. 
+  * On a completely different note, I had an issue with temperature readings shooting up to 150-180 degrees celsius sometimes, and the pressure going nuts as well. Reading through https://forum.arduino.cc/t/bmp280-sensor-wrong-data-readings/513455/15 showed me that the exposed pins on the BMP280 breakout board could switch between I2C and SPI mode. I experimented with a screwdriver touching the pins and sure enough I could cause the weird behavior to occur on demand. Covering the exposed pins seems to have helped drive down the error rate. 
 
 
 

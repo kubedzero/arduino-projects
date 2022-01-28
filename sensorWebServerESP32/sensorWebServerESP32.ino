@@ -8,19 +8,19 @@
 
 // libraries for sensor reading
 #include <Adafruit_Sensor.h> // 1.1.4 Adafruit unified sensor library
-#include <Adafruit_I2CDevice.h> // 1.9.3 Adafruit BusIO library
-#include <Adafruit_BMP280.h> // 2.4.2 Adafruit sensor library for BMP280
-#include <Adafruit_BME280.h> // 2.2.1 Adafruit sensor library for BME280
+#include <Adafruit_I2CDevice.h> // 1.10.3 Adafruit BusIO library
+#include <Adafruit_BMP280.h> // 2.6.1 Adafruit sensor library for BMP280
+#include <Adafruit_BME280.h> // 2.2.2 Adafruit sensor library for BME280
 #include <Adafruit_VEML6075.h> // 2.2.0 Adafruit sensor library for VEML6075 UV
 #include <Adafruit_SGP30.h> // 2.0.0 Adafruit sensor library for SGP30
-#include <DHT.h> // 1.4.2 Adafruit DHT Sensor Library for DHT22
+#include <DHT.h> // 1.4.3 Adafruit DHT Sensor Library for DHT22
 #include <PMS.h> // 1.1.0 Mariusz Kacki (fu-hsi) library for PMS x003 family sensors
 
 // other libraries
 #include <string.h> // string comparison
-#include <TaskScheduler.h> // 3.4.0 library by arkhipenko for periodic sensor updates
+#include <TaskScheduler.h> // 3.6.0 library by arkhipenko for periodic sensor updates
 #include <ArduinoLog.h> // 1.1.1 library by thijse for outputting different log levels
-#include <SoftwareSerial.h> // 6.13.2 library for assigning pins as Serial ports, for PMS7003
+#include <SoftwareSerial.h> // 6.15.2 library for assigning pins as Serial ports, for PMS7003
 
 
 
