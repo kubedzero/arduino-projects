@@ -7,9 +7,9 @@
 #include "myCredentials.h" // used to store WiFi and update credentials
 
 // libraries for sensor reading
-#include <Adafruit_Sensor.h> // 1.1.4 Adafruit unified sensor library
-#include <Adafruit_I2CDevice.h> // 1.10.3 Adafruit BusIO library
-#include <Adafruit_BMP280.h> // 2.6.1 Adafruit sensor library for BMP280
+#include <Adafruit_Sensor.h> // 1.1.5 Adafruit unified sensor library
+#include <Adafruit_I2CDevice.h> // 1.11.3 Adafruit BusIO library
+#include <Adafruit_BMP280.h> // 2.6.2 Adafruit sensor library for BMP280
 #include <Adafruit_BME280.h> // 2.2.2 Adafruit sensor library for BME280
 #include <Adafruit_VEML6075.h> // 2.2.0 Adafruit sensor library for VEML6075 UV
 #include <Adafruit_SGP30.h> // 2.0.0 Adafruit sensor library for SGP30

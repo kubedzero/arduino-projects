@@ -116,4 +116,8 @@
   58.60,16.70,62.06,55.33,14.00,57.20,101017.17,29.83, 0, 1, 1, 0, 1, 1
   ```
 
-* 
+
+
+## Compiling
+
+- I had an issue where I was seeing an error when compiling sketches for my Adafruit Huzzah ESP32 Feather: `exec: "python": executable file not found in $PATH; Error compiling for board Adafruit ESP32 Feather.` is what Arduino 1.8.19 would print out. I found a suggestion that said to open Arduino from the CLI, meaning `open /Applications/Arduino.app` and sure enough after that it worked fine!

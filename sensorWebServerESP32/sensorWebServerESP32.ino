@@ -1,5 +1,5 @@
 // libraries needed for OTA web server and WiFi connect
-#include <WiFi.h> // 3.0.2 ESP8266 specific WiFi library
+#include <WiFi.h> // 2.0.2 ESP32 specific WiFi library
 #include <WiFiClient.h> // library supporting WiFi connection
 #include <WebServer.h> // library for HTTP Server
 #include <HTTPUpdateServer.h> // library for OTA updates
@@ -7,9 +7,9 @@
 #include "myCredentials.h" // used to store WiFi and update credentials
 
 // libraries for sensor reading
-#include <Adafruit_Sensor.h> // 1.1.4 Adafruit unified sensor library
-#include <Adafruit_I2CDevice.h> // 1.10.3 Adafruit BusIO library
-#include <Adafruit_BMP280.h> // 2.6.1 Adafruit sensor library for BMP280
+#include <Adafruit_Sensor.h> // 1.1.5 Adafruit unified sensor library
+#include <Adafruit_I2CDevice.h> // 1.11.3 Adafruit BusIO library
+#include <Adafruit_BMP280.h> // 2.6.2 Adafruit sensor library for BMP280
 #include <Adafruit_BME280.h> // 2.2.2 Adafruit sensor library for BME280
 #include <Adafruit_VEML6075.h> // 2.2.0 Adafruit sensor library for VEML6075 UV
 #include <Adafruit_SGP30.h> // 2.0.0 Adafruit sensor library for SGP30
@@ -20,7 +20,7 @@
 #include <string.h> // string comparison
 #include <TaskScheduler.h> // 3.6.0 library by arkhipenko for periodic sensor updates
 #include <ArduinoLog.h> // 1.1.1 library by thijse for outputting different log levels
-#include <SoftwareSerial.h> // 6.15.2 library for assigning pins as Serial ports, for PMS7003
+#include <SoftwareSerial.h> // 6.16.1 library for assigning pins as Serial ports, for PMS7003
 
 
 
@@ -33,7 +33,7 @@ Scheduler scheduler;
 // log setup
 #define SERIAL_BAUD 115200 // baud rate for Serial debugging
 // available levels are _SILENT, _FATAL, _ERROR, _WARNING, _NOTICE, _TRACE, _VERBOSE
-#define LOG_LEVEL LOG_LEVEL_NOTICE
+#define LOG_LEVEL LOG_LEVEL_TRACE
 
 
 // webserver/OTA update variables and constants
