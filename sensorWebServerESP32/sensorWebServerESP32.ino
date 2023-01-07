@@ -1,5 +1,11 @@
+// Board Manager Settings
+// ESP32 https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+// ESP32 Dev Module (not Adafruit Feather ESP32 V2 or Feather ESP32-S2)
+// Upload Speed: 921600
+// Flash Size: 4MB
+
 // libraries needed for OTA web server and WiFi connect
-#include <WiFi.h> // 2.0.2 ESP32 specific WiFi library
+#include <WiFi.h> // 2.0.6 ESP32 specific WiFi library
 #include <WiFiClient.h> // library supporting WiFi connection
 #include <WebServer.h> // library for HTTP Server
 #include <HTTPUpdateServer.h> // library for OTA updates
@@ -7,20 +13,20 @@
 #include "myCredentials.h" // used to store WiFi and update credentials
 
 // libraries for sensor reading
-#include <Adafruit_Sensor.h> // 1.1.5 Adafruit unified sensor library
-#include <Adafruit_I2CDevice.h> // 1.11.3 Adafruit BusIO library
-#include <Adafruit_BMP280.h> // 2.6.2 Adafruit sensor library for BMP280
+#include <Adafruit_Sensor.h> // 1.1.7 Adafruit unified sensor library
+#include <Adafruit_I2CDevice.h> // 1.14.1 Adafruit BusIO library
+#include <Adafruit_BMP280.h> // 2.6.6 Adafruit sensor library for BMP280
 #include <Adafruit_BME280.h> // 2.2.2 Adafruit sensor library for BME280
 #include <Adafruit_VEML6075.h> // 2.2.0 Adafruit sensor library for VEML6075 UV
 #include <Adafruit_SGP30.h> // 2.0.0 Adafruit sensor library for SGP30
-#include <DHT.h> // 1.4.3 Adafruit DHT Sensor Library for DHT22
+#include <DHT.h> // 1.4.4 Adafruit DHT Sensor Library for DHT22
 #include <PMS.h> // 1.1.0 Mariusz Kacki (fu-hsi) library for PMS x003 family sensors
 
 // other libraries
 #include <string.h> // string comparison
-#include <TaskScheduler.h> // 3.6.0 library by arkhipenko for periodic sensor updates
+#include <TaskScheduler.h> // 3.7.0 library by arkhipenko for periodic sensor updates
 #include <ArduinoLog.h> // 1.1.1 library by thijse for outputting different log levels
-#include <SoftwareSerial.h> // 6.16.1 library for assigning pins as Serial ports, for PMS7003
+#include <SoftwareSerial.h> // 7.0.0 library for assigning pins as Serial ports, for PMS7003
 
 
 

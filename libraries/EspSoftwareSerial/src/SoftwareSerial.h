@@ -102,8 +102,8 @@ public:
     /// @param invert true: uses invert line level logic
     /// @param bufCapacity the capacity for the received bytes buffer
     /// @param isrBufCapacity 0: derived from bufCapacity. The capacity of the internal asynchronous
-    ///	       bit receive buffer, a suggested size is bufCapacity times the sum of
-    ///	       start, data, parity and stop bit count.
+    ///        bit receive buffer, a suggested size is bufCapacity times the sum of
+    ///        start, data, parity and stop bit count.
     void begin(uint32_t baud, SoftwareSerialConfig config,
         int8_t rxPin, int8_t txPin, bool invert,
         int bufCapacity = 64, int isrBufCapacity = 0);
@@ -122,8 +122,12 @@ public:
     uint32_t baudRate();
     /// Transmit control pin.
     void setTransmitEnablePin(int8_t txEnablePin);
-    /// Enable or disable interrupts during tx.
+    /// Enable (default) or disable interrupts during tx.
     void enableIntTx(bool on);
+    /// Enable (default) or disable internal rx GPIO pull-up.
+    void enableRxGPIOPullUp(bool on);
+    /// Enable or disable (default) tx GPIO output mode.
+    void enableTxGPIOOpenDrain(bool on);
 
     bool overflow();
 
@@ -199,39 +203,61 @@ public:
     bool isListening() { return m_rxEnabled; }
     bool stopListening() { enableRx(false); return true; }
 
-    /// Set an event handler for received data.
-    void onReceive(Delegate<void(int available), void*> handler);
-
-    /// Run the internal processing and event engine. Can be iteratively called
-    /// from loop, or otherwise scheduled.
-    void perform_work();
+    /// onReceive sets a callback that will be called in interrupt context
+    /// when data is received.
+    /// More precisely, the callback is triggered when EspSoftwareSerial detects
+    /// a new reception, which may not yet have completed on invocation.
+    /// Reading - never from this interrupt context - should therefore be
+    /// delayed for the duration of one incoming word.
+    void onReceive(Delegate<void(), void*> handler);
 
     using Print::write;
 
 private:
-    // If sync is false, it's legal to exceed the deadline, for instance,
+    // It's legal to exceed the deadline, for instance,
     // by enabling interrupts.
-    void preciseDelay(bool sync);
+    void lazyDelay();
+    // Synchronous precise delay
+    void preciseDelay();
     // If withStopBit is set, either cycle contains a stop bit.
     // If dutyCycle == 0, the level is not forced to HIGH.
     // If offCycle == 0, the level remains unchanged from dutyCycle.
     void writePeriod(
         uint32_t dutyCycle, uint32_t offCycle, bool withStopBit);
-    bool isValidGPIOpin(int8_t pin);
-    bool isValidRxGPIOpin(int8_t pin);
-    bool isValidTxGPIOpin(int8_t pin);
+    static constexpr bool isValidGPIOpin(int8_t pin);
+    static constexpr bool isValidRxGPIOpin(int8_t pin);
+    static constexpr bool isValidTxGPIOpin(int8_t pin);
     // result is only defined for a valid Rx GPIO pin
-    bool hasRxGPIOPullUp(int8_t pin);
+    static constexpr bool hasRxGPIOPullUp(int8_t pin);
+    // safely set the pin mode for the Rx GPIO pin
+    void setRxGPIOPinMode();
+    // safely set the pin mode for the Tx GPIO pin
+    void setTxGPIOPinMode();
     /* check m_rxValid that calling is safe */
     void rxBits();
-    void rxBits(const uint32_t& isrCycle);
+    void rxBits(const uint32_t isrTick);
+    static void disableInterrupts();
+    static void restoreInterrupts();
 
     static void rxBitISR(SoftwareSerial* self);
     static void rxBitSyncISR(SoftwareSerial* self);
 
+    static inline uint32_t microsToTicks(uint32_t micros) {
+        return micros << 1;
+    }
+    static inline uint32_t ticksToMicros(uint32_t ticks) {
+        return ticks >> 1;
+    }
+
     // Member variables
     int8_t m_rxPin = -1;
+    volatile uint32_t* m_rxReg;
+    uint32_t m_rxBitMask;
     int8_t m_txPin = -1;
+#if !defined(ESP8266)
+    volatile uint32_t* m_txReg;
+#endif
+    uint32_t m_txBitMask;
     int8_t m_txEnablePin = -1;
     uint8_t m_dataBits;
     bool m_oneWire;
@@ -243,28 +269,35 @@ private:
     /// PDU bits include data, parity and stop bits; the start bit is not counted.
     uint8_t m_pduBits;
     bool m_intTxEnabled;
+    bool m_rxGPIOPullUpEnabled;
+    bool m_txGPIOOpenDrain;
     SoftwareSerialParity m_parityMode;
     uint8_t m_stopBits;
     bool m_lastReadParity;
     bool m_overflow = false;
-    uint32_t m_bitCycles;
+    uint32_t m_bitTicks;
     uint8_t m_parityInPos;
     uint8_t m_parityOutPos;
-    int8_t m_rxCurBit; // 0 thru (m_pduBits - m_stopBits - 1): data/parity bits. -1: start bit. (m_pduBits - 1): stop bit.
+    int8_t m_rxLastBit; // 0 thru (m_pduBits - m_stopBits - 1): data/parity bits. -1: start bit. (m_pduBits - 1): stop bit.
     uint8_t m_rxCurByte = 0;
     std::unique_ptr<circular_queue<uint8_t> > m_buffer;
     std::unique_ptr<circular_queue<uint8_t> > m_parityBuffer;
     uint32_t m_periodStart;
     uint32_t m_periodDuration;
-    uint32_t m_savedPS = 0;
+#ifndef ESP32
+    static uint32_t m_savedPS;
+#else
+    static portMUX_TYPE m_interruptsMux;
+#endif
     // the ISR stores the relative bit times in the buffer. The inversion corrected level is used as sign bit (2's complement):
     // 1 = positive including 0, 0 = negative.
     std::unique_ptr<circular_queue<uint32_t, SoftwareSerial*> > m_isrBuffer;
-    const Delegate<void(uint32_t&&), SoftwareSerial*> m_isrBufferForEachDel = { [](SoftwareSerial* self, uint32_t&& isrCycle) { self->rxBits(isrCycle); }, this };
+    const Delegate<void(uint32_t&&), SoftwareSerial*> m_isrBufferForEachDel = { [](SoftwareSerial* self, uint32_t&& isrTick) { self->rxBits(isrTick); }, this };
     std::atomic<bool> m_isrOverflow;
-    uint32_t m_isrLastCycle;
+    uint32_t m_isrLastTick;
     bool m_rxCurParity = false;
-    Delegate<void(int available), void*> receiveHandler;
+    Delegate<void(), void*> m_rxHandler;
 };
 
 #endif // __SoftwareSerial_h
+

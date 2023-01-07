@@ -1,5 +1,12 @@
+// Board Manager Settings
+// ESP8266 https://arduino.esp8266.com/stable/package_esp8266com_index.json
+// NodeMCU 1.0 (ESP-12E Module)
+// Upload Speed: 115200
+// Flash Size: 4MB (FS:none, OTA:1019Kb)
+// SSL Support: Basic SSL Ciphers
+
 // libraries needed for OTA web server and WiFi connect
-#include <ESP8266WiFi.h> // 3.0.2 ESP8266 specific WiFi library
+#include <ESP8266WiFi.h> // 3.1.0 ESP8266 specific WiFi library
 #include <WiFiClient.h> // library supporting WiFi connection
 #include <ESP8266WebServer.h> // ESP8266 specific library for HTTP Server
 #include <ESP8266HTTPUpdateServer.h> // ESP8266 specific library for update code
@@ -7,18 +14,18 @@
 #include "myCredentials.h" // used to store WiFi and update credentials
 
 // libraries for sensor reading
-#include <Adafruit_Sensor.h> // 1.1.5 Adafruit unified sensor library
-#include <Adafruit_I2CDevice.h> // 1.11.3 Adafruit BusIO library
-#include <Adafruit_BMP280.h> // 2.6.2 Adafruit sensor library for BMP280
+#include <Adafruit_Sensor.h> // 1.1.7 Adafruit unified sensor library
+#include <Adafruit_I2CDevice.h> // 1.14.1 Adafruit BusIO library
+#include <Adafruit_BMP280.h> // 2.6.6 Adafruit sensor library for BMP280
 #include <Adafruit_BME280.h> // 2.2.2 Adafruit sensor library for BME280
 #include <Adafruit_VEML6075.h> // 2.2.0 Adafruit sensor library for VEML6075 UV
 #include <Adafruit_SGP30.h> // 2.0.0 Adafruit sensor library for SGP30
-#include <DHT.h> // 1.4.3 Adafruit DHT Sensor Library for DHT22
+#include <DHT.h> // 1.4.4 Adafruit DHT Sensor Library for DHT22
 #include <PMS.h> // 1.1.0 Mariusz Kacki (fu-hsi) library for PMS x003 family sensors
 
 // other libraries
 #include <string.h> // string comparison
-#include <TaskScheduler.h> // 3.6.0 library by arkhipenko for periodic sensor updates
+#include <TaskScheduler.h> // 3.7.0 library by arkhipenko for periodic sensor updates
 #include <ArduinoLog.h> // 1.1.1 library by thijse for outputting different log levels
 #include <SoftwareSerial.h> // library for assigning pins as Serial ports, for PMS7003
 

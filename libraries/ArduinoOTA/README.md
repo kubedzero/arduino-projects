@@ -1,3 +1,4 @@
+<a href="https://www.buymeacoffee.com/jurajandraY" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
 
 # Arduino library to upload sketch over network to supported Arduino board
 
@@ -26,6 +27,8 @@ The library is a modification of the Arduino WiFi101OTA library.
 * classic ATmega AVR with at least 64 kB of flash (Arduino Mega, [MegaCore](https://github.com/MCUdude/MegaCore) MCUs, MightyCore 1284p and 644)
 * Arduino SAMD boards like Zero, M0 or MKR and the new "Nano 33 IoT" 
 * nRF5 board supported by [nRF5 core](https://github.com/sandeepmistry/arduino-nRF5).
+* RP2040 boards with [Pico core](https://github.com/earlephilhower/arduino-pico)
+* STM32F boards with [STM32 core](https://github.com/stm32duino/Arduino_Core_STM32)
 * boards supported by ESP8266 and ESP32 Arduino boards package  
 * any board with MCU with SD bootloader
 
@@ -52,7 +55,9 @@ Arduino SAMD boards (Zero, M0, MKR, Nano 33 IoT) are supported 'out of the box'.
 
 For nRF5 boards two lines need to be added to platform.txt file of the nRF5 Arduino package. For details scroll down.
 
-For ESP8266 and ESP32 boards, platform.local.txt from extras folder need to be copied into boards package installation folder and the bundled ArduinoOTA library must be deleted. For details scroll down.
+For RP2040 and STM32F1 boards, platform.local.txt from extras folder has to be copied into boards package installation folder.
+
+For ESP8266 and ESP32 boards, platform.local.txt from extras folder has to be copied into boards package installation folder and the bundled ArduinoOTA library must be deleted. For details scroll down.
 
 ATmega boards require to flash a modified Optiboot bootloader for flash write operations. Details are below.
 
@@ -77,9 +82,11 @@ In IDE select in Tools menu the "Arduino OTA (...)" programmer and use "Upload u
 
 ## OTA update as download
 
+*Note: Don't use this for esp8266 and esp32 Arduino. Use the ESP8266httpUpdate and the esp32 HTTPUpdate library for OTA update download for esp8266/esp32. Or use the Update object from esp8266 core ot the Update library directly.*
+
 The WiFi101OTA and ArduinoOTA libraries were created for upload from IDE. But in some scenarios as for example deployed sleeping battery powered devices it is better to have the update available for download by the device.
 
-In advanced section of examples you can find examples of sketch update over download from a http server. One example shows update over the InternalStorage object of the ArduinoOTA library. The example for update over SD card doesn't use this library at all.    
+In advanced section of examples you can find examples of sketch update over download from a http server. One example shows update over the InternalStorage object of the ArduinoOTA library. The example for update over SD card doesn't use this library at all.
 
 The Blynk library uses this library in its Blynk.Edgent examples to store and apply user's updated sketch downloaded from the Blynk IoT cloud storage.
 
@@ -181,12 +188,17 @@ Does the OTA uploaded sketch have ArduinoOTA?
 * SAMD21
     - Arduino MKR Zero
     - Crowduino M0 SD
+    - Arduino Nano 33 IoT
     - [Arduino MKR WiFi 1010](https://github.com/jandrassy/ArduinoOTA/issues/46)
     - Arduino MKR WiFi 1000 (with Blynk.Edgent)
-    - Arduino Nano 33 IoT (with Blynk.Edgent)
     - [Adafruit Feather M0 Express](https://github.com/jandrassy/ArduinoOTA/discussions/77)
 * SAMD51
     - [Seeed Wio Terminal](https://github.com/jandrassy/ArduinoOTA/pull/104) (with Blynk.Edgent)
+* RP2040
+    - Raspberry Pi Pico
+* STM32
+    - BluePill F103CB (128kB flash)
+    - BlackPill F411CE
 * nRF5
     - Seeed Arch Link (nRF51 board)
     - [nrf52832 board](https://github.com/jandrassy/ArduinoOTA/issues/1)

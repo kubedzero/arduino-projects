@@ -1,5 +1,5 @@
 // Cooperative multitasking library for Arduino
-// Copyright (c) 2015-2019 Anatoli Arkhipenko
+// Copyright (c) 2015-2022 Anatoli Arkhipenko
 
 #include <stddef.h>
 #include <stdint.h>
@@ -27,6 +27,8 @@
 // #define _TASK_SCHEDULING_OPTIONS // Support for multiple scheduling options
 // #define _TASK_DEFINE_MILLIS      // Force forward declaration of millis() and micros() "C" style
 // #define _TASK_EXTERNAL_TIME      // Custom millis() and micros() methods
+// #define _TASK_THREAD_SAFE        // Enable additional checking for thread safety
+// #define _TASK_SELF_DESTRUCT      // Enable tasks to "self-destruct" after disable
 
 class Scheduler;
 
@@ -79,17 +81,16 @@ class Scheduler;
 
 #endif  // _TASK_MICRO_RES
 
-
 #ifdef _TASK_STATUS_REQUEST
 
 #define TASK_SR_OK          0
 #define TASK_SR_ERROR       (-1)
-#define TASK_SR_TIMEOUT     (-99)
+#define TASK_SR_CANCEL      (-32766)
+#define TASK_SR_ABORT       (-32767)
+#define TASK_SR_TIMEOUT     (-32768)
  
 #define _TASK_SR_NODELAY    1
 #define _TASK_SR_DELAY      2
-
-class Scheduler;
 
 class StatusRequest {
   friend class Scheduler;
@@ -100,8 +101,8 @@ class StatusRequest {
     INLINE void signalComplete(int aStatus = 0);
     INLINE bool pending();
     INLINE bool completed();
-    INLINE int getStatus();
-    INLINE int getCount();
+    INLINE int  getStatus();
+    INLINE int  getCount();
     
 #ifdef _TASK_TIMEOUT
     INLINE void setTimeout(unsigned long aTimeout) { iTimeout = aTimeout; };
@@ -112,7 +113,7 @@ class StatusRequest {
 
   _TASK_SCOPE:
     unsigned int  iCount;          // number of statuses to wait for. waiting for more that 65000 events seems unreasonable: unsigned int should be sufficient
-    int           iStatus;         // status of the last completed request. negative = error;  zero = OK; positive = OK with a specific status
+    int           iStatus;         // status of the last completed request. negative = error;  zero = OK; positive = OK with a specific status (see TASK_SR_ constants)
 
 #ifdef _TASK_TIMEOUT
     unsigned long            iTimeout;               // Task overall timeout
@@ -141,17 +142,20 @@ typedef bool (*TaskOnEnable)();
 #endif  // _TASK_SLEEP_ON_IDLE_RUN
 
 typedef struct  {
-    bool  enabled    : 1;           // indicates that task is enabled or not.
-    bool  inonenable : 1;           // indicates that task execution is inside OnEnable method (preventing infinite loops)
-    bool  canceled   : 1;           // indication that tast has been canceled prior to normal end of all iterations or regular call to disable()
+    bool  enabled       : 1;           // indicates that task is enabled or not.
+    bool  inonenable    : 1;           // indicates that task execution is inside OnEnable method (preventing infinite loops)
+    bool  canceled      : 1;           // indication that task has been canceled prior to normal end of all iterations or regular call to disable()
+#ifdef _TASK_SELF_DESTRUCT
+    bool  selfdestruct  : 1;           // indication that task has been requested to self-destruct on disable
+    bool  sd_request    : 1;           // request for scheduler to delete task object and take task out of the queue
+#endif  // _TASK_SELF_DESTRUCT
 #ifdef _TASK_STATUS_REQUEST
-    uint8_t  waiting : 2;           // indication if task is waiting on the status request
-#endif
+    uint8_t  waiting    : 2;           // indication if task is waiting on the status request
+#endif  // _TASK_STATUS_REQUEST
 
 #ifdef _TASK_TIMEOUT
-    bool  timeout    : 1;           // indication if task timed out
-#endif
-
+    bool  timeout       : 1;           // indication if task timed out
+#endif  //  _TASK_TIMEOUT
 } __task_status;
 
 
@@ -160,9 +164,19 @@ class Task {
   public:
 
 #ifdef _TASK_OO_CALLBACKS
-    INLINE Task(unsigned long aInterval=0, long aIterations=0, Scheduler* aScheduler=NULL, bool aEnable=false);
+    INLINE Task(unsigned long aInterval=0, long aIterations=0, Scheduler* aScheduler=NULL, bool aEnable=false
+#ifdef _TASK_SELF_DESTRUCT
+    , bool aSelfDestruct=false);
 #else
-    INLINE Task(unsigned long aInterval=0, long aIterations=0, TaskCallback aCallback=NULL, Scheduler* aScheduler=NULL, bool aEnable=false, TaskOnEnable aOnEnable=NULL, TaskOnDisable aOnDisable=NULL);
+    );
+#endif  // #ifdef _TASK_SELF_DESTRUCT
+#else
+    INLINE Task(unsigned long aInterval=0, long aIterations=0, TaskCallback aCallback=NULL, Scheduler* aScheduler=NULL, bool aEnable=false, TaskOnEnable aOnEnable=NULL, TaskOnDisable aOnDisable=NULL
+#ifdef _TASK_SELF_DESTRUCT
+  , bool aSelfDestruct=false);
+#else
+  );
+#endif  // #ifdef _TASK_SELF_DESTRUCT
 #endif // _TASK_OO_CALLBACKS
 
 
@@ -193,6 +207,7 @@ class Task {
     INLINE bool restartDelayed(unsigned long aDelay=0);
 
     INLINE void delay(unsigned long aDelay=0);
+    INLINE void adjust(long aInterval);
     INLINE void forceNextIteration();
     INLINE bool disable();
     INLINE void abort();
@@ -214,7 +229,12 @@ class Task {
     INLINE unsigned long getInterval();
     INLINE void setIterations(long aIterations);
     INLINE long getIterations();
-    INLINE unsigned long getRunCounter() ;
+    INLINE unsigned long getRunCounter();
+    
+#ifdef _TASK_SELF_DESTRUCT
+    INLINE void setSelfDestruct(bool aSelfDestruct=true) { iStatus.selfdestruct = aSelfDestruct; }
+    INLINE bool getSelfDestruct() { return iStatus.selfdestruct; }
+#endif  //  #ifdef _TASK_SELF_DESTRUCT
 
 #ifdef _TASK_OO_CALLBACKS
     virtual INLINE bool Callback() =0;  // return true if run was "productive - this will disable sleep on the idle run for next pass
@@ -309,6 +329,11 @@ class Task {
     unsigned long            iTimeout;               // Task overall timeout
     unsigned long            iStarttime;             // millis at task start time
 #endif // _TASK_TIMEOUT
+
+
+#ifdef _TASK_THREAD_SAFE
+    volatile uint8_t          iMutex;                // a mutex to pause scheduling during chages to the task
+#endif
 };
 
 class Scheduler {
@@ -365,15 +390,15 @@ class Scheduler {
 #endif // _TASK_EXPOSE_CHAIN
 
   _TASK_SCOPE:
-    Task       *iFirst, *iLast, *iCurrent;        // pointers to first, last and current tasks in the chain
+    Task          *iFirst, *iLast, *iCurrent;        // pointers to first, last and current tasks in the chain
 
-    bool       iPaused, iEnabled;
+    volatile bool iPaused, iEnabled;
 #ifdef _TASK_SLEEP_ON_IDLE_RUN
-    bool        iAllowSleep;                      // indication if putting MC to IDLE_SLEEP mode is allowed by the program at this time.
+    bool          iAllowSleep;                      // indication if putting MC to IDLE_SLEEP mode is allowed by the program at this time.
 #endif  // _TASK_SLEEP_ON_IDLE_RUN
 
 #ifdef _TASK_PRIORITY
-    Scheduler  *iHighPriority;                    // Pointer to a higher priority scheduler
+    Scheduler*    iHighPriority;                    // Pointer to a higher priority scheduler
 #endif  // _TASK_PRIORITY
 
 #ifdef _TASK_TIMECRITICAL
