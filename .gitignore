@@ -1,3 +1,6 @@
 # https://stackoverflow.com/questions/8981472/ignore-all-files-with-the-same-name-in-git
 **/myCredentials.h
 .DS_Store
+sensorWebServerESP32/debug.cfg
+sensorWebServerESP32/debug_custom.json
+sensorWebServerESP32/esp32.svd

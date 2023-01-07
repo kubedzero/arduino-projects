@@ -1,5 +1,5 @@
 // Board Manager Settings
-// ESP8266 https://arduino.esp8266.com/stable/package_esp8266com_index.json
+// ESP8266 3.1.0 https://arduino.esp8266.com/stable/package_esp8266com_index.json
 // NodeMCU 1.0 (ESP-12E Module)
 // Upload Speed: 115200
 // Flash Size: 4MB (FS:none, OTA:1019Kb)
@@ -47,6 +47,7 @@ Scheduler scheduler;
 const char* root_path = "/"; // URL path to get to the root page
 const char* update_path = "/firmware"; // URL path to get to firmware update
 const char* restart_path = "/restart"; // URL path to get to the Restart page
+const char* reboot_path = "/reboot"; // URL path to get to the Restart page
 const char* update_username = WEB_UPDATE_USER; // from creds file
 const char* update_password = WEB_UPDATE_PASS; // from creds file
 const char* ssid = WIFI_SSID; // from creds file
@@ -173,7 +174,8 @@ void updateSensorData() {
   }
 
   // get PMS Data
-  if (pmsStatus.equals("PMS7003") && pms.readUntil(pmsData)) { // readUntil has 1000ms default timeout to get data
+  pms.wakeUp();
+  if (pmsStatus.equals("PMS7003") && pms.read(pmsData)) { 
     pmsPm10Standard = pmsData.PM_SP_UG_1_0;
     pmsPm25Standard = pmsData.PM_SP_UG_2_5;
     pmsPm100Standard = pmsData.PM_SP_UG_10_0;
@@ -229,6 +231,7 @@ void setup(void) {
   httpServer.onNotFound(handleNotFound); // when a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
   httpServer.on(root_path, handleRoot); // take care of the page we populate with our information
   httpServer.on(restart_path, handleRestart); // calling this page will trigger a restart/reboot of the ESP
+  httpServer.on(reboot_path, handleRestart); // calling this page will trigger a restart/reboot of the ESP
   httpServer.begin();
 }
 
@@ -364,7 +367,6 @@ void handleRoot() {
   Log.notice("Serving root webpage at %l milliseconds", millis()); // print out milliseconds since program launch, resets every 50d
   httpServer.send(200, "text/plain", getGlobalDataHeader() + String("\n") + getGlobalDataString());   // send HTTP status 200 (Ok) and send some text to the browser/client
   digitalWrite(LED_BUILTIN, HIGH); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
-
 }
 
 // LED activates when this is hit. Sends a page with a button that can be used to reboot
@@ -375,7 +377,6 @@ void handleRestart() {
   delay(250); // give the HttpServer some time to send the response before restarting
   ESP.restart(); // reboot the ESP
   digitalWrite(LED_BUILTIN, HIGH); // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
-
 }
 
 // LED activates when this is hit. Serves a 404 to the caller
