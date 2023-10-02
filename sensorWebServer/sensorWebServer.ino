@@ -190,14 +190,24 @@ void updateSensorData() {
 
   // get PMS Data
   pms.wakeUp();
-  if (pmsStatus.equals("PMS7003") && pms.read(pmsData)) {
-    pmsPm10Standard = pmsData.PM_SP_UG_1_0;
-    pmsPm25Standard = pmsData.PM_SP_UG_2_5;
-    pmsPm100Standard = pmsData.PM_SP_UG_10_0;
-    pmsPm10Environmental = pmsData.PM_AE_UG_1_0;
-    pmsPm25Environmental = pmsData.PM_AE_UG_2_5;
-    pmsPm100Environmental = pmsData.PM_AE_UG_10_0;
-    Log.trace("Retrieved new PMS7003 data");
+  if (pmsStatus.equals("PMS7003")) {
+    if (pms.readUntil(pmsData, 2000)) {
+      pmsPm10Standard = pmsData.PM_SP_UG_1_0;
+      pmsPm25Standard = pmsData.PM_SP_UG_2_5;
+      pmsPm100Standard = pmsData.PM_SP_UG_10_0;
+      pmsPm10Environmental = pmsData.PM_AE_UG_1_0;
+      pmsPm25Environmental = pmsData.PM_AE_UG_2_5;
+      pmsPm100Environmental = pmsData.PM_AE_UG_10_0;
+      Log.trace("Retrieved new PMS7003 data");
+    } else {
+      pmsPm10Standard = NO_DATA_INIT_VALUE;
+      pmsPm25Standard = NO_DATA_INIT_VALUE;
+      pmsPm100Standard = NO_DATA_INIT_VALUE;
+      pmsPm10Environmental = NO_DATA_INIT_VALUE;
+      pmsPm25Environmental = NO_DATA_INIT_VALUE;
+      pmsPm100Environmental = NO_DATA_INIT_VALUE;
+      Log.warning("PMS is present but no new data was read");
+    }
   }
 
   // get VEML UV data
@@ -215,6 +225,9 @@ void updateSensorData() {
       sgpECO2 = sgp.eCO2;
       Log.trace("Retrieved new SGP30 data");
     } else {
+      // Reset the values to stock to indicate to Influx that there's no new data
+      sgpTVOC = NO_DATA_INIT_VALUE;
+      sgpECO2 = NO_DATA_INIT_VALUE;
       Log.error("SGP30 Measurement Failed");
     }
   }
@@ -228,13 +241,17 @@ void updateSensorData() {
     uint16_t error;
     char errorMessage[256];
 
+    // Reset the values to stock to indicate to Influx that there's no new data
+    scdCO2 = NO_DATA_INIT_VALUE;
+    scdTemperatureC = NO_DATA_INIT_VALUE;
+    scdHumidityPercent = NO_DATA_INIT_VALUE;
+
     // Check if the SCD is ready to offer data
     error = scd4x.getDataReadyFlag(isDataReady);
-    if (error || !isDataReady) {
-      if (!isDataReady) {
-        Log.notice("isDataReady was false");
-      }
-      Log.notice("Error trying to execute SCD getDataReadyFlag, or the flag was false");
+    if (!isDataReady) {
+      Log.notice("isDataReady was false");
+    } else if (error) {
+      Log.notice("Error trying to execute SCD getDataReadyFlag");
       errorToString(error, errorMessage, 256);
       Serial.println(errorMessage);
     } else {
@@ -243,6 +260,7 @@ void updateSensorData() {
       if (error || co2 == 0) {
         Log.notice("Error trying to execute SCD readMeasurement, or CO2 value was 0 (impossible)");
       } else {
+        // The values are valid and fresh, update the Influx-readable values
         scdCO2 = co2;
         scdTemperatureC = temperature;
         scdHumidityPercent = humidity;
@@ -275,7 +293,7 @@ void setup(void) {
   scheduler.addTask(dataUpdateTask);  // initialize the scheduled data gathering task
   dataUpdateTask.enable();            // enable the data gathering task
 
-  httpUpdater.setup(&httpServer, update_path, update_username, update_password);  // OTA server setup
+  httpUpdater.setup(&httpServer, update_path, update_username, update_password);  // OTA server setup on the /firmware path
   httpServer.onNotFound(handleNotFound);                                          // when a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
   httpServer.on(root_path, handleRoot);                                           // take care of the page we populate with our information
   httpServer.on(restart_path, handleRestart);                                     // calling this page will trigger a restart/reboot of the ESP

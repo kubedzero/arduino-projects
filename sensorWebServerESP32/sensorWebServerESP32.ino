@@ -224,6 +224,9 @@ void updateSensorData() {
       sgpECO2 = sgp.eCO2;
       Log.trace("Retrieved new SGP30 data");
     } else {
+      // Reset the values to stock to indicate to Influx that there's no new data
+      sgpTVOC = NO_DATA_INIT_VALUE;
+      sgpECO2 = NO_DATA_INIT_VALUE;
       Log.error("SGP30 Measurement Failed");
     }
   }
@@ -237,13 +240,17 @@ void updateSensorData() {
     uint16_t error;
     char errorMessage[256];
 
+    // Reset the values to stock to indicate to Influx that there's no new data
+    scdCO2 = NO_DATA_INIT_VALUE;
+    scdTemperatureC = NO_DATA_INIT_VALUE;
+    scdHumidityPercent = NO_DATA_INIT_VALUE;
+
     // Check if the SCD is ready to offer data
     error = scd4x.getDataReadyFlag(isDataReady);
-    if (error || !isDataReady) {
-      if (!isDataReady) {
-        Log.notice("isDataReady was false");
-      }
-      Log.notice("Error trying to execute SCD getDataReadyFlag, or the flag was false");
+    if (!isDataReady) {
+      Log.notice("isDataReady was false");
+    } else if (error) {
+      Log.notice("Error trying to execute SCD getDataReadyFlag");
       errorToString(error, errorMessage, 256);
       Serial.println(errorMessage);
     } else {
@@ -252,6 +259,7 @@ void updateSensorData() {
       if (error || co2 == 0) {
         Log.notice("Error trying to execute SCD readMeasurement, or CO2 value was 0 (impossible)");
       } else {
+        // The values are valid and fresh, update the Influx-readable values
         scdCO2 = co2;
         scdTemperatureC = temperature;
         scdHumidityPercent = humidity;
@@ -284,7 +292,7 @@ void setup(void) {
   scheduler.addTask(dataUpdateTask);  // initialize the scheduled data gathering task
   dataUpdateTask.enable();            // enable the data gathering task
 
-  httpUpdater.setup(&httpServer, update_path, update_username, update_password);  // OTA server setup
+  httpUpdater.setup(&httpServer, update_path, update_username, update_password);  // OTA server setup on the /firmware path
   httpServer.onNotFound(handleNotFound);                                          // when a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
   httpServer.on(root_path, handleRoot);                                           // take care of the page we populate with our information
   httpServer.on(restart_path, handleRestart);                                     // calling this page will trigger a restart/reboot of the ESP
