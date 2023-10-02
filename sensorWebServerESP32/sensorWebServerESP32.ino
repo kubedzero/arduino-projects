@@ -1,11 +1,11 @@
 // Board Manager Settings
 // ESP32 2.0.10 https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
-// Adafruit ESP32 Feather (not Adafruit Feather ESP32 V2 or Feather ESP32-S2)
+// Adafruit ESP32 Feather (not Adafruit Feather ESP32 V2 or Feather ESP32-S2) or DOIT ESP32 DEVKIT V1
 // Upload Speed: 921600
 // Flash Size: 4MB
 
 // libraries needed for OTA web server and WiFi connect
-#include <WiFi.h>              // 2.0.10 ESP32 specific WiFi library
+#include <WiFi.h>              // 2.0.11 ESP32 specific WiFi library
 #include <WiFiClient.h>        // library supporting WiFi connection
 #include <WebServer.h>         // library for HTTP Server
 #include <HTTPUpdateServer.h>  // library for OTA updates
@@ -13,14 +13,15 @@
 #include "myCredentials.h"  // used to store WiFi and update credentials
 
 // libraries for sensor reading
-#include <Adafruit_Sensor.h>     // 1.1.9 Adafruit unified sensor library
-#include <Adafruit_I2CDevice.h>  // 1.14.1 Adafruit BusIO library
+#include <Adafruit_Sensor.h>     // 1.1.12 Adafruit unified sensor library
+#include <Adafruit_I2CDevice.h>  // 1.14.4 Adafruit BusIO library
 #include <Adafruit_BMP280.h>     // 2.6.8 Adafruit sensor library for BMP280
 #include <Adafruit_BME280.h>     // 2.2.2 Adafruit sensor library for BME280
 #include <Adafruit_VEML6075.h>   // 2.2.0 Adafruit sensor library for VEML6075 UV
 #include <Adafruit_SGP30.h>      // 2.0.0 Adafruit sensor library for SGP30
 #include <DHT.h>                 // 1.4.4 Adafruit DHT Sensor Library for DHT22
 #include <PMS.h>                 // 1.1.0 Mariusz Kacki (fu-hsi) library for PMS x003 family sensors
+#include <SensirionI2CScd4x.h>   // 0.6.0 Sensiron Core & 0.4.0 Sensiron I2C SCD4X library for SCD40
 
 // other libraries
 #include <string.h>          // string comparison
@@ -56,13 +57,16 @@ HTTPUpdateServer httpUpdater;
 
 
 // sensor inits, constants, global variables
+// NOTE: I2C Default Pins
+// AliExpress DOIT ESP32: SDA 21, SCL 22
+// Adafruit Feather ESP32: SDA 23, SCL 22
+// NodeMCU ESP8266: SDA D2, SCL D1
 String boschStatus = "uninitialized";
 String pmsStatus = "uninitialized";
 String vemlStatus = "uninitialized";
 String sgpStatus = "uninitialized";
+String scdStatus = "uninitialized";
 #define BME280ADDRESS 0x76         // the I2C address of the BME280 used
-#define I2CPIN_SDA D2              // the default I2C data pin on an ESP8266
-#define I2CPIN_SCL D1              // the default I2C clock pin on an ESP8266
 #define DHTPIN 18                  // the digital pin the DHT sensor is connected to
 #define DHTTYPE DHT22              // options are DHT11, DHT12, DHT22 (AM2302), DHT21 (AM2301)
 #define PMSTX 17                   // (NOT CONNECTED) what Arduino TX digital pin the PMS sensor RX is connected to
@@ -72,6 +76,7 @@ String sgpStatus = "uninitialized";
 #define NO_DATA_INIT_VALUE -16384  // data field initialization value, which should never appear in real readings
 
 
+SensirionI2CScd4x scd4x;                               // I2C SCD4x init
 Adafruit_BMP280 bmp280;                                // I2C BMP280 init
 Adafruit_BME280 bme280;                                // I2C BME280 init
 Adafruit_SGP30 sgp;                                    // I2C SGP30 init
@@ -107,6 +112,11 @@ float vemlUVIndex = NO_DATA_INIT_VALUE;
 float sgpTVOC = NO_DATA_INIT_VALUE;
 float sgpECO2 = NO_DATA_INIT_VALUE;
 
+// SCD Data
+float scdCO2 = NO_DATA_INIT_VALUE;
+float scdTemperatureC = NO_DATA_INIT_VALUE;
+float scdHumidityPercent = NO_DATA_INIT_VALUE;
+
 // prints the CSV header/schema of the data output
 String getGlobalDataHeader() {
   return String("dhtHumidityPercent") + ","
@@ -124,7 +134,10 @@ String getGlobalDataHeader() {
          + String("vemlUVB") + ","
          + String("vemlUVIndex") + ","
          + String("sgpTVOC") + ","
-         + String("sgpECO2");
+         + String("sgpECO2") + ","
+         + String("scdCO2") + ","
+         + String("scdTemperatureC") + ","
+         + String("scdHumidityPercent");
 }
 
 // prints the CSV data output of each metric, with defined decimal precision
@@ -144,7 +157,10 @@ String getGlobalDataString() {
          + String(vemlUVB, 2) + ","
          + String(vemlUVIndex, 2) + ","
          + String(sgpTVOC, 0) + ","
-         + String(sgpECO2, 0);
+         + String(sgpECO2, 0) + ","
+         + String(scdCO2, 0) + ","
+         + String(scdTemperatureC, 2) + ","
+         + String(scdHumidityPercent, 2);
 }
 
 // logic to handle updating the global sensor data vars from present sensors
@@ -211,6 +227,38 @@ void updateSensorData() {
       Log.error("SGP30 Measurement Failed");
     }
   }
+
+  // get SCD CO2, Temperature, and Humidity data
+  if (scdStatus.equals("SCD4x")) {
+    uint16_t co2 = 0;
+    float temperature = 0.0f;
+    float humidity = 0.0f;
+    bool isDataReady = false;
+    uint16_t error;
+    char errorMessage[256];
+
+    // Check if the SCD is ready to offer data
+    error = scd4x.getDataReadyFlag(isDataReady);
+    if (error || !isDataReady) {
+      if (!isDataReady) {
+        Log.notice("isDataReady was false");
+      }
+      Log.notice("Error trying to execute SCD getDataReadyFlag, or the flag was false");
+      errorToString(error, errorMessage, 256);
+      Serial.println(errorMessage);
+    } else {
+      // Check if there was an issue getting SCD data
+      error = scd4x.readMeasurement(co2, temperature, humidity);
+      if (error || co2 == 0) {
+        Log.notice("Error trying to execute SCD readMeasurement, or CO2 value was 0 (impossible)");
+      } else {
+        scdCO2 = co2;
+        scdTemperatureC = temperature;
+        scdHumidityPercent = humidity;
+        Log.trace("Retrieved new SCD data");
+      }
+    }
+  }
 }
 
 // one-time Arduino setup method
@@ -228,6 +276,7 @@ void setup(void) {
 
   dht.begin();   // initialize the DHT sensor. No extra handling, as it returns void
   setupBosch();  // run the setup method to initialize one Bosch sensor
+  setupSCD();    // run the setup method to initialize the SCD sensor
   setupPMS();    // run the setup method to initialize the PMS sensor
   setupVEML();   // run the setup method to initialize the VEML sensor
   setupSGP();    // run the setup method to initialize the SGP sensor
@@ -354,9 +403,8 @@ void setupSGP() {
   for (uint8_t i = 1; i <= SENSOR_RETRY_LIMIT; i++) {
     if (sgp.begin(&Wire, true)) {
       sgpStatus = "SGP30";
-      Log.notice("Found SGP30 on attempt %i!", i);
       // print serial using hex to ascii wildcard, example had Serial.print(sgp.serialnumber[0], HEX);
-      Log.notice("SGP30 serial is #%x%x%x", sgp.serialnumber[0], sgp.serialnumber[1], sgp.serialnumber[2]);
+      Log.notice("Found SGP30 on attempt %i with serial #%x%x%x", i, sgp.serialnumber[0], sgp.serialnumber[1], sgp.serialnumber[2]);
       break;  // exit the loop early as we've found the sensor
     } else {
       Log.notice("SGP30 not found, %i tries remaining", SENSOR_RETRY_LIMIT - i);
@@ -365,6 +413,50 @@ void setupSGP() {
   }
   if (sgpStatus.equals("uninitialized")) {
     Log.notice("Could not find a valid SGP30, check wiring, I2C bus!");
+  }
+}
+
+// method to connect and initialize an SCD4x sensor
+void setupSCD() {
+  // give the SCD sensor a few attempts to establish a connection
+  for (uint8_t i = 1; i <= SENSOR_RETRY_LIMIT; i++) {
+    uint16_t error;
+    scd4x.begin(Wire);
+    // Test the sensor by trying to stop the measurement
+    error = scd4x.stopPeriodicMeasurement();
+    // If the error is set, try another loop of initialization
+    if (error) {
+      Log.notice("Error trying to execute SCD4x stopPeriodicMeasurement, %i tries remaining", SENSOR_RETRY_LIMIT - i);
+      delay(500);
+      continue;
+    }
+    // Print the SCD serial number
+    uint16_t serial0;
+    uint16_t serial1;
+    uint16_t serial2;
+    error = scd4x.getSerialNumber(serial0, serial1, serial2);
+    // If the error is set, try another loop of initialization
+    if (error) {
+      Log.notice("Error trying to execute SCD4x getSerialNumber, %i tries remaining", SENSOR_RETRY_LIMIT - i);
+      delay(500);
+      continue;
+    } else {
+      // print serial using hex to ascii wildcard, example had Serial.print(serial0, HEX);
+      Log.notice("Found SCD4x on attempt %i with serial: #%x%x%x", i, serial0, serial1, serial2);
+    }
+    // Start Measurement
+    error = scd4x.startPeriodicMeasurement();
+    // If the error is set, try another loop of initialization
+    if (error) {
+      Log.notice("Error trying to execute SCD startPeriodicMeasurement, %i tries remaining", SENSOR_RETRY_LIMIT - i);
+      delay(500);
+      continue;
+    }
+    scdStatus = "SCD4x";
+    break;
+  }
+  if (scdStatus.equals("uninitialized")) {
+    Log.notice("Could not find a valid SCD4x, check wiring, I2C bus!");
   }
 }
 
