@@ -1,5 +1,5 @@
 // Board Manager Settings
-// ESP32 2.0.10 https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+// ESP32 2.0.13 https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
 // Adafruit ESP32 Feather (not Adafruit Feather ESP32 V2 or Feather ESP32-S2) or DOIT ESP32 DEVKIT V1
 // Upload Speed: 921600
 // Flash Size: 4MB
@@ -271,7 +271,12 @@ void updateSensorData() {
 
 // one-time Arduino setup method
 void setup(void) {
-  pinMode(LED_BUILTIN, OUTPUT);  // Blue(GeekCreit) or Red(NodeMCU 0.9) LED initialized LOW (LED ON)
+  // Set LED as output pin. Arduino's Board Manager determines keyword to actual pin mapping.
+  // With ESP32 dev boards, LOW = LED OFF = default and HIGH = LED ON
+  // With ESP8266 dev boards, LOW = LED ON = default and HIGH = LED OFF
+  pinMode(LED_BUILTIN, OUTPUT);
+  // Pins initialize as LOW, set to HIGH to turn LED ON
+  digitalWrite(LED_BUILTIN, HIGH);
   // serial, logging, WiFi setup
   Serial.begin(SERIAL_BAUD);
   while (!Serial && !Serial.available()) {}
@@ -311,7 +316,7 @@ void loop(void) {
 void WiFiConnect() {
   // Attempt a reconnect any time we are not in a connected state. No timeout
   if (WiFi.status() != WL_CONNECTED) {
-    digitalWrite(LED_BUILTIN, LOW);  // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to on while connecting
+    digitalWrite(LED_BUILTIN, HIGH);  // Turn LED ON while connecting
     Log.notice("WiFi is not connected. Connecting to %s", ssid);
     WiFi.disconnect();
     WiFi.mode(WIFI_STA);         // set Station mode, rater than access point mode. WIFI_AP, WIFI_STA, WIFI_AP_STA or WIFI_OFF
@@ -324,7 +329,7 @@ void WiFiConnect() {
     char* ipAddrChar = new char[ipAddrString.length() + 1];  // allocate space for a char array
     strcpy(ipAddrChar, ipAddrString.c_str());                // populate the char array
     Log.notice("Connected, IP address is %s", ipAddrChar);   // pass the char array to the logger
-    digitalWrite(LED_BUILTIN, HIGH);                         // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
+    digitalWrite(LED_BUILTIN, LOW);                          // Turn LED OFF once done connecting to WiFi
   } else {
     Log.verbose("WiFi is connected, nothing to do");
   }
@@ -470,28 +475,28 @@ void setupSCD() {
 
 // LED activates when this is hit. Fetches latest data values and serves them as two lines of CSV: schema line and data line
 void handleRoot() {
-  digitalWrite(LED_BUILTIN, LOW);                                                                    // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to on
+  digitalWrite(LED_BUILTIN, HIGH);                                                                   // Turn LED ON while serving the webpage
   Log.notice("Serving root webpage at %l milliseconds", millis());                                   // print out milliseconds since program launch, resets every 50d
   httpServer.send(200, "text/plain", getGlobalDataHeader() + String("\n") + getGlobalDataString());  // send HTTP status 200 (Ok) and send some text to the browser/client
-  digitalWrite(LED_BUILTIN, HIGH);                                                                   // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
+  digitalWrite(LED_BUILTIN, LOW);                                                                    // Turn LED OFF once done serving the webpage
 }
 
 // LED activates when this is hit. Sends a page with a button that can be used to reboot
 void handleRestart() {
-  digitalWrite(LED_BUILTIN, LOW);                                                        // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to on
+  digitalWrite(LED_BUILTIN, HIGH);                                                       // Turn LED ON while serving the webpage
   Log.notice("Serving restart webpage at %l milliseconds", millis());                    // print out milliseconds since program launch, resets every 50d
   httpServer.send(200, "text/plain", "A restart/reboot of the ESP is being triggered");  // send HTTP status 200 (Ok) and send some text to the browser/client
   delay(250);                                                                            // give the HttpServer some time to send the response before restarting
   ESP.restart();                                                                         // reboot the ESP
-  digitalWrite(LED_BUILTIN, HIGH);                                                       // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
+  digitalWrite(LED_BUILTIN, LOW);                                                        // Turn LED OFF once done serving the webpage
 }
 
 // LED activates when this is hit. Serves a 404 to the caller
 void handleNotFound() {
-  digitalWrite(LED_BUILTIN, LOW);                                            // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to on
+  digitalWrite(LED_BUILTIN, HIGH);                                           // Turn LED ON while serving the webpage
   Log.notice("Serving 404 not found webpage at %l milliseconds", millis());  // print out milliseconds since program launch, resets every 50d
   httpServer.send(404, "text/plain", "404: Not found");                      // send HTTP status 404 (Not Found) when there's no handler for the URI in the request
-  digitalWrite(LED_BUILTIN, HIGH);                                           // set Blue(GeekCreit) or Red(NodeMCU 0.9) LED to off
+  digitalWrite(LED_BUILTIN, LOW);                                            // Turn LED OFF once done serving the webpage
 }
 
 // helper to add a newline at the end of every log statement. Provided by log-advanced example.
