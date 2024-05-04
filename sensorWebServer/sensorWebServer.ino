@@ -14,21 +14,21 @@
 #include "myCredentials.h"  // used to store WiFi and update credentials
 
 // libraries for sensor reading
-#include <Adafruit_Sensor.h>     // 1.1.12 Adafruit unified sensor library
-#include <Adafruit_I2CDevice.h>  // 1.14.4 Adafruit BusIO library
+#include <Adafruit_Sensor.h>     // 1.1.14 Adafruit unified sensor library
+#include <Adafruit_I2CDevice.h>  // 1.16.0 Adafruit BusIO library
 #include <Adafruit_BMP280.h>     // 2.6.8 Adafruit sensor library for BMP280
-#include <Adafruit_BME280.h>     // 2.2.2 Adafruit sensor library for BME280
-#include <Adafruit_VEML6075.h>   // 2.2.0 Adafruit sensor library for VEML6075 UV
-#include <Adafruit_SGP30.h>      // 2.0.0 Adafruit sensor library for SGP30
-#include <DHT.h>                 // 1.4.4 Adafruit DHT Sensor Library for DHT22
+#include <Adafruit_BME280.h>     // 2.2.4 Adafruit sensor library for BME280
+#include <Adafruit_VEML6075.h>   // 2.2.2 Adafruit sensor library for VEML6075 UV
+#include <Adafruit_SGP30.h>      // 2.0.3 Adafruit sensor library for SGP30
+#include <DHT.h>                 // 1.4.6 Adafruit DHT Sensor Library for DHT22
 #include <PMS.h>                 // 1.1.0 Mariusz Kacki (fu-hsi) library for PMS x003 family sensors
-#include <SensirionI2CScd4x.h>   // 0.6.0 Sensiron Core & 0.4.0 Sensiron I2C SCD4X library for SCD40
+#include <SensirionI2CScd4x.h>   // 0.7.1 Sensiron Core & 0.4.0 Sensiron I2C SCD4X library for SCD40
 
 // other libraries
 #include <string.h>          // string comparison
 #include <TaskScheduler.h>   // 3.7.0 library by arkhipenko for periodic sensor updates
 #include <ArduinoLog.h>      // 1.1.1 library by thijse for outputting different log levels
-#include <SoftwareSerial.h>  // library for assigning pins as Serial ports, for PMS7003
+#include <SoftwareSerial.h>  // 8.1.0 library for assigning pins as Serial ports, for PMS7003
 
 
 
